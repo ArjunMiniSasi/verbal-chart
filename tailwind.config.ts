@@ -47,6 +47,23 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        medical: {
+          primary: "hsl(var(--medical-primary))",
+          secondary: "hsl(var(--medical-secondary))",
+          warning: "hsl(var(--medical-warning))",
+          success: "hsl(var(--medical-success))",
+          error: "hsl(var(--medical-error))",
+        },
+        voice: {
+          idle: "hsl(var(--voice-idle))",
+          recording: "hsl(var(--voice-recording))",
+          processing: "hsl(var(--voice-processing))",
+        },
+        entity: {
+          symptom: "hsl(var(--entity-symptom))",
+          condition: "hsl(var(--entity-condition))",
+          medication: "hsl(var(--entity-medication))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -84,6 +101,17 @@ export default {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "voice-pulse": "voice-pulse 1.5s ease-in-out infinite",
+      },
+      backgroundImage: {
+        "gradient-medical": "var(--gradient-medical)",
+        "gradient-primary": "var(--gradient-primary)",
+        "gradient-voice": "var(--gradient-voice)",
+      },
+      boxShadow: {
+        "medical": "var(--shadow-medical)",
+        "card": "var(--shadow-card)",
+        "voice": "var(--shadow-voice)",
       },
     },
   },
