@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
 import { transcribeAudio } from "@/lib/api";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 
 export const VoiceButton = () => {
   const { 
@@ -22,6 +22,9 @@ export const VoiceButton = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+
+  // Add component mount log
+  console.log('🎤 VoiceButton component rendered');
 
   const startRecording = async () => {
     try {
@@ -71,7 +74,7 @@ export const VoiceButton = () => {
 
       console.log('🎤 Recording started successfully');
       toast({
-        title: "🎤 Recording Started",
+        title: " Recording Started",
         description: "Voice recording is now active. Click the red button to stop.",
       });
 
@@ -110,7 +113,7 @@ export const VoiceButton = () => {
       streamRef.current = null;
     }
     
-    console.log('🛑 Recording cleanup completed');
+    console.log(' Recording cleanup completed');
     
     toast({
       title: "🛑 Recording Stopped",
@@ -121,7 +124,7 @@ export const VoiceButton = () => {
 
   const processRecording = async (audioBlob: Blob) => {
     setIsProcessing(true);
-    console.log('🔄 Processing recording...', audioBlob.size, 'bytes');
+    console.log(' Processing recording...', audioBlob.size, 'bytes');
     
     try {
       const audioFile = new File([audioBlob], `recording-${Date.now()}.webm`, { type: "audio/webm" });
@@ -169,7 +172,7 @@ export const VoiceButton = () => {
   };
 
   const handleToggleRecording = () => {
-    console.log('🎤 Button clicked! Current state:', { isRecording, isProcessing });
+    console.log(' Button clicked! Current state:', { isRecording, isProcessing });
     
     if (isRecording) {
       stopRecording();
@@ -184,21 +187,6 @@ export const VoiceButton = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Cleanup on component unmount
-  useEffect(() => {
-    return () => {
-      if (isRecording) {
-        stopRecording();
-      }
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [isRecording]);
-  
   return (
     <div className="text-center">
       <motion.div
@@ -279,7 +267,7 @@ export const VoiceButton = () => {
         {isRecording && (
           <div className="mt-4 flex items-center justify-center gap-3 bg-red-50 border border-red-200 rounded-lg p-3">
             <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-red-700 font-bold">🔴 LIVE RECORDING</span>
+            <span className="text-sm text-red-700 font-bold"> LIVE RECORDING</span>
             <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
           </div>
         )}

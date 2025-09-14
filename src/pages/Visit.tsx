@@ -15,6 +15,9 @@ export const Visit = () => {
   const navigate = useNavigate();
   const { currentPatient, setCurrentPatient } = useMedoraStore();
 
+  console.log('🏥 Visit page loaded, patientId:', patientId);
+  console.log('🏥 Current patient:', currentPatient);
+
   useEffect(() => {
     if (!patientId) {
       navigate('/');
@@ -51,6 +54,7 @@ export const Visit = () => {
       <div className="container mx-auto p-6">
         {/* Voice Recording Section */}
         <div className="mb-8 text-center">
+          <p className="text-sm text-muted-foreground mb-4">Voice Recording Section</p>
           <VoiceButton />
         </div>
 
