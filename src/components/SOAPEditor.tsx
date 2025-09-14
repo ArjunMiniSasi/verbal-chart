@@ -17,53 +17,64 @@ export const SOAPEditor = () => {
   } = useMedoraStore();
   const { toast } = useToast();
 
-  const generateSOAP = () => {
+  const generateSOAP = async () => {
     if (transcript.length === 0) {
       toast({
         title: "No transcript available",
-        description: "Start recording to generate SOAP notes.",
+        description: "Please transcribe audio first.",
         variant: "destructive"
       });
       return;
     }
 
-    // Auto-generate SOAP from transcript
-    const transcriptText = transcript.map(chunk => chunk.text).join(' ');
-    const entities = transcript.flatMap(chunk => 
-      chunk.entities.map(e => e.text)
-    );
+    try {
+      // Simulate AI SOAP generation
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const transcriptText = transcript.map(chunk => chunk.text).join(' ');
+      const entities = transcript.flatMap(chunk => 
+        chunk.entities.map(e => e.text)
+      );
 
-    // Simple SOAP generation (mock)
-    const subjective = `Patient reports: ${transcriptText.slice(0, 200)}...`;
-    
-    const objective = entities.length > 0 
-      ? `Key findings: ${entities.slice(0, 5).join(', ')}`
-      : 'Physical examination findings to be documented.';
-    
-    const assessment = entities.filter(e => 
-      transcript.some(chunk => 
-        chunk.entities.some(entity => entity.text === e && entity.type === 'condition')
-      )
-    ).length > 0 
-      ? `Possible conditions: ${entities.filter(e => 
-          transcript.some(chunk => 
-            chunk.entities.some(entity => entity.text === e && entity.type === 'condition')
-          )
-        ).join(', ')}`
-      : 'Assessment pending further evaluation.';
+      // Generate mock SOAP notes based on transcript
+      const subjective = `Patient reports: ${transcriptText.slice(0, 200)}...`;
+      
+      const objective = entities.length > 0 
+        ? `Key findings: ${entities.slice(0, 5).join(', ')}`
+        : 'Physical examination findings to be documented.';
+      
+      const assessment = entities.filter(e => 
+        transcript.some(chunk => 
+          chunk.entities.some(entity => entity.text === e && entity.type === 'condition')
+        )
+      ).length > 0 
+        ? `Possible conditions: ${entities.filter(e => 
+            transcript.some(chunk => 
+              chunk.entities.some(entity => entity.text === e && entity.type === 'condition')
+            )
+          ).join(', ')}`
+        : 'Assessment pending further evaluation.';
 
-    updateSOAPNote('subjective', subjective);
-    updateSOAPNote('objective', objective);
-    updateSOAPNote('assessment', assessment);
-    
-    if (!soapNote.plan) {
-      updateSOAPNote('plan', 'Treatment plan to be determined based on assessment.');
+      const plan = 'Treatment plan to be determined based on assessment. Follow up as needed.';
+
+      updateSOAPNote('subjective', subjective);
+      updateSOAPNote('objective', objective);
+      updateSOAPNote('assessment', assessment);
+      updateSOAPNote('plan', plan);
+
+      toast({
+        title: "SOAP Generated",
+        description: "AI-generated SOAP note from transcript.",
+      });
+
+    } catch (error) {
+      console.error('SOAP generation error:', error);
+      toast({
+        title: "SOAP Generation Failed",
+        description: "Failed to generate SOAP notes. Please try again.",
+        variant: "destructive"
+      });
     }
-
-    toast({
-      title: "SOAP Generated",
-      description: "Auto-generated SOAP note from transcript.",
-    });
   };
 
   const wordCount = (text: string) => {

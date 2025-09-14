@@ -1,12 +1,12 @@
-import { Header } from "@/components/Header";
-import { AudioUpload } from "@/components/AudioUpload";
-import { Transcript } from "@/components/Transcript";
-import { SOAPEditor } from "@/components/SOAPEditor";
-import { CaseSummary } from "@/components/CaseSummary";
-import { useMedoraStore } from "@/stores/medoraStore";
+import { Header } from "@/components/Header"
+import { AudioUpload } from "@/components/AudioUpload"
+import { Transcript } from "@/components/Transcript"
+import { SOAPEditor } from "@/components/SOAPEditor"
+import { CaseSummary } from "@/components/CaseSummary"
+import { useMedoraStore } from "@/stores/medoraStore"
 
-const Index = () => {
-  const { currentPatient, transcript, soapNote } = useMedoraStore();
+const HomePage = () => {
+  const { currentPatient, transcript, soapNote } = useMedoraStore()
 
   return (
     <div className="min-h-screen bg-background">
@@ -38,7 +38,7 @@ const Index = () => {
         )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Index;
+export default HomePage

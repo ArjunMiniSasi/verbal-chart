@@ -1,0 +1,40 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Patient {
+  id        String   @id @default(cuid())
+  name      String
+  age       Int
+  mrn       String   @unique
+  lastVisit DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  caseSheets CaseSheet[]
+}
+
+model CaseSheet {
+  id          String   @id @default(cuid())
+  patientId   String
+  transcript  String
+  soapNotes   String   // JSON string of SOAP note sections
+  summary     String
+  embedding   String   // JSON string of embedding vector
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
