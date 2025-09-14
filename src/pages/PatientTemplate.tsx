@@ -11,14 +11,11 @@ import {
   Mail, 
   Upload, 
   Mic, 
-  MicOff,
   FileText,
-  Loader2,
-  Play,
-  Pause,
-  Square
+  Loader2
 } from "lucide-react"
 import { AudioUpload } from "@/components/AudioUpload"
+import { VoiceButton } from "@/components/VoiceButton"
 import { Transcript } from "@/components/Transcript"
 import { SOAPEditor } from "@/components/SOAPEditor"
 import { CaseSummary } from "@/components/CaseSummary"
@@ -31,8 +28,6 @@ const PatientTemplate = () => {
   const { toast } = useToast()
   const { currentPatient, setCurrentPatient, transcript, soapNote } = useMedoraStore()
   
-  const [isRecording, setIsRecording] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false)
   const [patientData, setPatientData] = useState<any>(null)
 
   // Fetch patient data based on patientId - in real app, this would be an API call
@@ -83,41 +78,9 @@ const PatientTemplate = () => {
     }
   }, [patientId, setCurrentPatient])
 
-  const handleStartRecording = () => {
-    setIsRecording(true)
-    toast({
-      title: "Recording Started",
-      description: "Voice input is being captured. Speak clearly into your microphone.",
-    })
-    
-    // Simulate recording process
-    setTimeout(() => {
-      setIsRecording(false)
-      setIsProcessing(true)
-      
-      // Simulate processing
-      setTimeout(() => {
-        setIsProcessing(false)
-        toast({
-          title: "Recording Complete",
-          description: "Audio has been processed and transcribed.",
-        })
-      }, 3000)
-    }, 5000)
-  }
-
-  const handleStopRecording = () => {
-    setIsRecording(false)
-    setIsProcessing(true)
-    
-    setTimeout(() => {
-      setIsProcessing(false)
-      toast({
-        title: "Recording Stopped",
-        description: "Audio is being processed...",
-      })
-    }, 2000)
-  }
+  // Add debugging log
+  console.log('🏥 PatientTemplate page loaded, patientId:', patientId);
+  console.log('🏥 Current patient:', currentPatient);
 
   if (!patientData) {
     return (
@@ -244,52 +207,8 @@ const PatientTemplate = () => {
                 </p>
               </CardHeader>
               <CardContent className="text-center space-y-6">
-                {/* Recording Button */}
-                <div className="flex justify-center">
-                  {!isRecording ? (
-                    <Button 
-                      size="lg"
-                      className="h-20 w-20 rounded-full bg-medical-primary hover:bg-medical-primary/90 gap-2"
-                      onClick={handleStartRecording}
-                      disabled={isProcessing}
-                    >
-                      {isProcessing ? (
-                        <Loader2 className="h-8 w-8 animate-spin" />
-                      ) : (
-                        <Mic className="h-8 w-8" />
-                      )}
-                    </Button>
-                  ) : (
-                    <div className="space-y-4">
-                      <Button 
-                        size="lg"
-                        className="h-20 w-20 rounded-full bg-red-600 hover:bg-red-700 gap-2 animate-pulse"
-                        onClick={handleStopRecording}
-                      >
-                        <Square className="h-8 w-8" />
-                      </Button>
-                      <div className="text-center">
-                        <p className="text-lg font-medium text-red-600">Recording...</p>
-                        <p className="text-sm text-muted-foreground">Click to stop recording</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Recording Status */}
-                {isRecording && (
-                  <div className="flex items-center justify-center gap-2 text-red-600">
-                    <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></div>
-                    <span className="text-sm font-medium">Live Recording Active</span>
-                  </div>
-                )}
-
-                {isProcessing && (
-                  <div className="flex items-center justify-center gap-2 text-blue-600">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm font-medium">Processing audio...</span>
-                  </div>
-                )}
+                {/* Voice Recording Component */}
+                <VoiceButton />
               </CardContent>
             </Card>
 
