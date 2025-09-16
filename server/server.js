@@ -99,6 +99,127 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
+// SOAP Generation endpoint
+app.post('/api/generate-soap', async (req, res) => {
+  try {
+    const { systemPrompt, userPrompt } = req.body;
+
+    if (!systemPrompt || !userPrompt) {
+      return res.status(400).json({ error: 'System prompt and user prompt are required' });
+    }
+
+    console.log('🤖 Generating SOAP with OpenAI...');
+    console.log('📝 User prompt length:', userPrompt.length);
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: userPrompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 4000
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    console.log('📋 Raw OpenAI response:', response);
+    
+    if (!response) {
+      throw new Error('No response from OpenAI');
+    }
+
+    // Clean the response to extract JSON from markdown code blocks
+    let cleanedResponse = response.trim();
+    
+    // Remove markdown code block markers
+    if (cleanedResponse.startsWith('```json')) {
+      cleanedResponse = cleanedResponse.replace(/^```json\s*/, '');
+    }
+    if (cleanedResponse.startsWith('```')) {
+      cleanedResponse = cleanedResponse.replace(/^```\s*/, '');
+    }
+    if (cleanedResponse.endsWith('```')) {
+      cleanedResponse = cleanedResponse.replace(/\s*```$/, '');
+    }
+    
+    console.log('🧹 Cleaned response:', cleanedResponse);
+
+    // Try to parse as JSON
+    let soapNote;
+    try {
+      soapNote = JSON.parse(cleanedResponse);
+      console.log('✅ Successfully parsed JSON response');
+    } catch (parseError) {
+      console.log('⚠️ JSON parse failed, trying text parsing...');
+      console.log('Parse error:', parseError.message);
+      
+      // Fallback: parse the text response
+      soapNote = parseSOAPFromText(cleanedResponse);
+      console.log('📝 Text parsing result:', soapNote);
+    }
+
+    console.log('🎯 Final SOAP note:', soapNote);
+    res.json({ soapNote });
+  } catch (error) {
+    console.error('SOAP generation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate SOAP notes',
+      message: error.message 
+    });
+  }
+});
+
+// Helper function to parse SOAP from text
+function parseSOAPFromText(text) {
+  console.log('🔍 Parsing text for SOAP sections...');
+  console.log('Text to parse:', text.substring(0, 200) + '...');
+  
+  const sections = {
+    subjective: '',
+    objective: '',
+    assessment: '',
+    plan: ''
+  };
+
+  // Enhanced text parsing to extract sections
+  const lines = text.split('\n');
+  let currentSection = '';
+
+  for (const line of lines) {
+    const lowerLine = line.toLowerCase().trim();
+    
+    if (lowerLine.includes('subjective') || lowerLine.includes('s —') || lowerLine.includes('chief complaint')) {
+      currentSection = 'subjective';
+      console.log('📍 Found subjective section');
+    } else if (lowerLine.includes('objective') || lowerLine.includes('o —') || lowerLine.includes('physical exam')) {
+      currentSection = 'objective';
+      console.log('📍 Found objective section');
+    } else if (lowerLine.includes('assessment') || lowerLine.includes('a —') || lowerLine.includes('impression')) {
+      currentSection = 'assessment';
+      console.log('📍 Found assessment section');
+    } else if (lowerLine.includes('plan') || lowerLine.includes('p —') || lowerLine.includes('treatment')) {
+      currentSection = 'plan';
+      console.log('📍 Found plan section');
+    } else if (currentSection && line.trim()) {
+      sections[currentSection] += line.trim() + ' ';
+    }
+  }
+
+  // Clean up the sections
+  Object.keys(sections).forEach(key => {
+    sections[key] = sections[key].trim();
+  });
+
+  console.log('📊 Parsed sections:', sections);
+  return sections;
+}
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {
