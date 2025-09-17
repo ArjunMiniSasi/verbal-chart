@@ -1,9 +1,8 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Eye, Download, Save, Loader2 } from "lucide-react";
+import { FileText, Eye, Download, Save, Loader2, Stethoscope, ClipboardList, Brain, Target } from "lucide-react";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -154,16 +153,52 @@ Generate a SOAP note for this veterinary consultation.`;
     total + wordCount(section), 0
   );
 
+  const SOAPSection = ({ 
+    title, 
+    icon: Icon, 
+    value, 
+    onChange, 
+    placeholder, 
+    wordCount: sectionWordCount 
+  }: {
+    title: string;
+    icon: any;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+    wordCount: number;
+  }) => (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-blue-600" />
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+        </div>
+        {sectionWordCount > 0 && (
+          <Badge variant="outline" className="ml-auto bg-blue-50 text-blue-700 border-blue-200">
+            {sectionWordCount} words
+          </Badge>
+        )}
+      </div>
+      <Textarea
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="min-h-[120px] resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+      />
+    </div>
+  );
+
   return (
     <Card className="h-full">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-medical-primary" />
-            <h3 className="text-lg font-semibold">SOAP Editor</h3>
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FileText className="h-6 w-6 text-blue-600" />
+            <CardTitle className="text-xl font-bold text-gray-900">SOAP Editor</CardTitle>
             {totalWords > 0 && (
-              <Badge variant="outline">
-                {totalWords} words
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                {totalWords} words total
               </Badge>
             )}
           </div>
@@ -173,7 +208,7 @@ Generate a SOAP note for this veterinary consultation.`;
               size="sm" 
               onClick={generateSOAP}
               disabled={transcript.length === 0 || isGenerating}
-              className="gap-2"
+              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
             >
               {isGenerating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -187,86 +222,55 @@ Generate a SOAP note for this veterinary consultation.`;
               size="sm" 
               onClick={() => setShowPreview(true)}
               disabled={totalWords === 0}
-              className="gap-2"
+              className="gap-2 border-gray-300 hover:bg-gray-50"
             >
               <Eye className="h-4 w-4" />
               Preview
             </Button>
           </div>
         </div>
+      </CardHeader>
 
-        <Tabs defaultValue="subjective" className="h-[500px]">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="subjective" className="relative">
-              Subjective
-              {wordCount(soapNote.subjective) > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
-                  {wordCount(soapNote.subjective)}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="objective" className="relative">
-              Objective
-              {wordCount(soapNote.objective) > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
-                  {wordCount(soapNote.objective)}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="assessment" className="relative">
-              Assessment
-              {wordCount(soapNote.assessment) > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
-                  {wordCount(soapNote.assessment)}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="plan" className="relative">
-              Plan
-              {wordCount(soapNote.plan) > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
-                  {wordCount(soapNote.plan)}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
+      <CardContent className="space-y-8">
+        {/* Subjective Section */}
+        <SOAPSection
+          title="Subjective"
+          icon={Stethoscope}
+          value={soapNote.subjective}
+          onChange={(value) => updateSOAPNote('subjective', value)}
+          placeholder="Patient's subjective symptoms, history, and owner observations..."
+          wordCount={wordCount(soapNote.subjective)}
+        />
 
-          <TabsContent value="subjective" className="mt-4 h-[400px]">
-            <Textarea
-              placeholder="Patient's subjective symptoms and history..."
-              value={soapNote.subjective}
-              onChange={(e) => updateSOAPNote('subjective', e.target.value)}
-              className="h-full resize-none"
-            />
-          </TabsContent>
+        {/* Objective Section */}
+        <SOAPSection
+          title="Objective"
+          icon={ClipboardList}
+          value={soapNote.objective}
+          onChange={(value) => updateSOAPNote('objective', value)}
+          placeholder="Objective findings, vital signs, physical examination results..."
+          wordCount={wordCount(soapNote.objective)}
+        />
 
-          <TabsContent value="objective" className="mt-4 h-[400px]">
-            <Textarea
-              placeholder="Objective findings, vital signs, physical examination..."
-              value={soapNote.objective}
-              onChange={(e) => updateSOAPNote('objective', e.target.value)}
-              className="h-full resize-none"
-            />
-          </TabsContent>
+        {/* Assessment Section */}
+        <SOAPSection
+          title="Assessment"
+          icon={Brain}
+          value={soapNote.assessment}
+          onChange={(value) => updateSOAPNote('assessment', value)}
+          placeholder="Clinical assessment, diagnosis, and differential diagnoses..."
+          wordCount={wordCount(soapNote.assessment)}
+        />
 
-          <TabsContent value="assessment" className="mt-4 h-[400px]">
-            <Textarea
-              placeholder="Clinical assessment and diagnosis..."
-              value={soapNote.assessment}
-              onChange={(e) => updateSOAPNote('assessment', e.target.value)}
-              className="h-full resize-none"
-            />
-          </TabsContent>
-
-          <TabsContent value="plan" className="mt-4 h-[400px]">
-            <Textarea
-              placeholder="Treatment plan, follow-up, and recommendations..."
-              value={soapNote.plan}
-              onChange={(e) => updateSOAPNote('plan', e.target.value)}
-              className="h-full resize-none"
-            />
-          </TabsContent>
-        </Tabs>
+        {/* Plan Section */}
+        <SOAPSection
+          title="Plan"
+          icon={Target}
+          value={soapNote.plan}
+          onChange={(value) => updateSOAPNote('plan', value)}
+          placeholder="Treatment plan, medications, follow-up recommendations..."
+          wordCount={wordCount(soapNote.plan)}
+        />
       </CardContent>
     </Card>
   );
