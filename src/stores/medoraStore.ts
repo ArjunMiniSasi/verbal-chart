@@ -32,6 +32,7 @@ export interface MedoraState {
   setHistoryMatches: (matches: HistoryRecord[]) => void;
   setSuggestions: (suggestions: Suggestion[]) => void;
   updateSOAPNote: (section: keyof MedoraState['soapNote'], content: string) => void;
+  setSOAPNote: (soapNote: MedoraState['soapNote']) => void;
   clearSOAPNote: () => void;
   setShowPreview: (show: boolean) => void;
   resetSession: () => void;
@@ -93,6 +94,8 @@ export const useMedoraStore = create<MedoraState>((set, get) => ({
       }
     });
   },
+  
+  setSOAPNote: (soapNote) => set({ soapNote }),
   
   clearSOAPNote: () => set({
     soapNote: {

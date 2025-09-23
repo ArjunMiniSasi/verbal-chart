@@ -106,6 +106,14 @@ const PatientTemplate = () => {
   // Add debugging log
   console.log('🏥 PatientTemplate page loaded, patientId:', patientId);
   console.log('🏥 Current patient:', currentPatient);
+  
+  // Test if SOAP generator import works
+  try {
+    console.log('🧪 Testing SOAP generator import...');
+    // This will help us see if the import is causing issues
+  } catch (error) {
+    console.error('❌ SOAP generator import error:', error);
+  }
 
   const getSpeciesIcon = (species: string) => {
     switch (species) {
