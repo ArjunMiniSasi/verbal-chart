@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Eye, Download, Save, Loader2, Stethoscope, ClipboardList, Brain, Target } from "lucide-react";
+import { FileText, Eye, Download, Save, Loader2, Stethoscope, ClipboardList, Brain, Target, Pill, Calculator, ChevronDown, ChevronUp } from "lucide-react";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -20,8 +20,10 @@ export const SOAPEditor = () => {
   } = useMedoraStore();
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [isPlanExpanded, setIsPlanExpanded] = useState(false);
 
-  const generateSOAP = async () => {
+  const generateSOA = async () => {
     if (transcript.length === 0) {
       toast({
         title: "No transcript available",
@@ -45,7 +47,7 @@ export const SOAPEditor = () => {
     try {
       const transcriptText = transcript.map(chunk => chunk.text).join(' ');
       
-      // Simplified and more direct veterinary SOAP prompt
+      // Modified prompt to generate only SOA (Subjective, Objective, Assessment)
       const systemPrompt = `You are a veterinary AI assistant. Generate SOAP notes in JSON format.
 
 Return ONLY a valid JSON object with these exact keys:
@@ -53,12 +55,13 @@ Return ONLY a valid JSON object with these exact keys:
   "subjective": "string content here",
   "objective": "string content here", 
   "assessment": "string content here",
-  "plan": "string content here"
+  "plan": ""
 }
 
 Rules:
 - Use veterinary medical terminology
-- Be concise but complete
+- Be concise but complete for SOA sections
+- Leave the "plan" field empty as it will be generated separately
 - Return ONLY the JSON object, no other text
 - Ensure valid JSON syntax`;
 
@@ -69,9 +72,9 @@ Owner: ${currentPatient.owner.name}
 Clinical Transcript:
 ${transcriptText}
 
-Generate a SOAP note for this veterinary consultation.`;
+Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consultation. Leave the plan section empty.`;
 
-      console.log('🌐 Calling SOAP API:', `${API_BASE_URL}/api/generate-soap`);
+      console.log('🌐 Calling SOAP API for SOA:', `${API_BASE_URL}/api/generate-soap`);
 
       const response = await fetch(`${API_BASE_URL}/api/generate-soap`, {
         method: 'POST',
@@ -122,26 +125,65 @@ Generate a SOAP note for this veterinary consultation.`;
 
       console.log('📝 Parsed SOAP data:', soapData);
 
-      // Update SOAP notes with the parsed data
+      // Update only SOA sections, leave plan empty
       updateSOAPNote('subjective', soapData.subjective || '');
       updateSOAPNote('objective', soapData.objective || '');
       updateSOAPNote('assessment', soapData.assessment || '');
-      updateSOAPNote('plan', soapData.plan || '');
+      // Don't update plan - it will be generated separately
 
       toast({
-        title: "SOAP Generated Successfully",
-        description: "AI-generated SOAP note from transcript using veterinary standards.",
+        title: "SOA Generated Successfully",
+        description: "AI-generated SOA notes from transcript. Plan will be generated separately.",
       });
 
     } catch (error) {
-      console.error('SOAP generation error:', error);
+      console.error('SOA generation error:', error);
       toast({
-        title: "SOAP Generation Failed",
-        description: error instanceof Error ? error.message : "Failed to generate SOAP notes. Please try again.",
+        title: "SOA Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate SOA notes. Please try again.",
         variant: "destructive"
       });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const generatePlan = async () => {
+    if (!soapNote.assessment) {
+      toast({
+        title: "Assessment required",
+        description: "Please generate SOA notes first before creating a treatment plan.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Expand the plan section when generate plan is clicked
+    setIsPlanExpanded(true);
+    setIsGeneratingPlan(true);
+
+    try {
+      // This will be implemented when the veterinary drug database is ready
+      // For now, show a placeholder message
+      toast({
+        title: "Plan Generation Coming Soon",
+        description: "Treatment plan generation will be available once the veterinary drug database is integrated.",
+        variant: "default"
+      });
+
+      // Placeholder for future implementation
+      // const planData = await generateTreatmentPlan(soapNote.assessment, currentPatient);
+      // updateSOAPNote('plan', planData);
+
+    } catch (error) {
+      console.error('Plan generation error:', error);
+      toast({
+        title: "Plan Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate treatment plan. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingPlan(false);
     }
   };
 
@@ -151,42 +193,6 @@ Generate a SOAP note for this veterinary consultation.`;
 
   const totalWords = Object.values(soapNote).reduce((total, section) => 
     total + wordCount(section), 0
-  );
-
-  const SOAPSection = ({ 
-    title, 
-    icon: Icon, 
-    value, 
-    onChange, 
-    placeholder, 
-    wordCount: sectionWordCount 
-  }: {
-    title: string;
-    icon: any;
-    value: string;
-    onChange: (value: string) => void;
-    placeholder: string;
-    wordCount: number;
-  }) => (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <Icon className="h-5 w-5 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        </div>
-        {sectionWordCount > 0 && (
-          <Badge variant="outline" className="ml-auto bg-blue-50 text-blue-700 border-blue-200">
-            {sectionWordCount} words
-          </Badge>
-        )}
-      </div>
-      <Textarea
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="min-h-[120px] resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-      />
-    </div>
   );
 
   return (
@@ -206,7 +212,7 @@ Generate a SOAP note for this veterinary consultation.`;
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={generateSOAP}
+              onClick={generateSOA}
               disabled={transcript.length === 0 || isGenerating}
               className="gap-2 bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
             >
@@ -215,7 +221,21 @@ Generate a SOAP note for this veterinary consultation.`;
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              {isGenerating ? 'Generating...' : 'Generate SOAP'}
+              {isGenerating ? 'Generating SOA...' : 'Generate SOA'}
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={generatePlan}
+              disabled={!soapNote.assessment || isGeneratingPlan}
+              className="gap-2 bg-green-600 hover:bg-green-700 text-white border-green-600"
+            >
+              {isGeneratingPlan ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Pill className="h-4 w-4" />
+              )}
+              {isGeneratingPlan ? 'Generating Plan...' : 'Generate Plan'}
             </Button>
             <Button 
               variant="outline" 
@@ -231,46 +251,153 @@ Generate a SOAP note for this veterinary consultation.`;
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-8">
-        {/* Subjective Section */}
-        <SOAPSection
-          title="Subjective"
-          icon={Stethoscope}
-          value={soapNote.subjective}
-          onChange={(value) => updateSOAPNote('subjective', value)}
-          placeholder="Patient's subjective symptoms, history, and owner observations..."
-          wordCount={wordCount(soapNote.subjective)}
-        />
+      <CardContent className="space-y-6">
+        {/* Medical Record Section - Timeline Style */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 pb-2 border-b-2 border-blue-200">
+            <Stethoscope className="h-6 w-6 text-blue-600" />
+            <h2 className="text-xl font-bold text-gray-900">Medical Record</h2>
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              SOA Generated
+            </Badge>
+          </div>
+          
+          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+            {/* Timeline container */}
+            <div className="relative">
+              {/* Vertical timeline line */}
+              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-blue-300"></div>
+              
+              {/* Subjective */}
+              <div className="relative flex items-start mb-6">
+                <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center z-10">
+                  <Stethoscope className="h-4 w-4 text-white" />
+                </div>
+                <div className="ml-4 flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="font-bold text-gray-800 text-lg">Subjective</h3>
+                    {wordCount(soapNote.subjective) > 0 && (
+                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        {wordCount(soapNote.subjective)} words
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="bg-white p-3 rounded border border-gray-200">
+                    <Textarea
+                      placeholder="Patient's subjective symptoms, history, and owner observations..."
+                      value={soapNote.subjective}
+                      onChange={(e) => updateSOAPNote('subjective', e.target.value)}
+                      className="min-h-[60px] resize-none border-0 focus:ring-0 p-0 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
 
-        {/* Objective Section */}
-        <SOAPSection
-          title="Objective"
-          icon={ClipboardList}
-          value={soapNote.objective}
-          onChange={(value) => updateSOAPNote('objective', value)}
-          placeholder="Objective findings, vital signs, physical examination results..."
-          wordCount={wordCount(soapNote.objective)}
-        />
+              {/* Objective */}
+              <div className="relative flex items-start mb-6">
+                <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center z-10">
+                  <ClipboardList className="h-4 w-4 text-white" />
+                </div>
+                <div className="ml-4 flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="font-bold text-gray-800 text-lg">Objective</h3>
+                    {wordCount(soapNote.objective) > 0 && (
+                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        {wordCount(soapNote.objective)} words
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="bg-white p-3 rounded border border-gray-200">
+                    <Textarea
+                      placeholder="Objective findings, vital signs, physical examination results..."
+                      value={soapNote.objective}
+                      onChange={(e) => updateSOAPNote('objective', e.target.value)}
+                      className="min-h-[60px] resize-none border-0 focus:ring-0 p-0 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
 
-        {/* Assessment Section */}
-        <SOAPSection
-          title="Assessment"
-          icon={Brain}
-          value={soapNote.assessment}
-          onChange={(value) => updateSOAPNote('assessment', value)}
-          placeholder="Clinical assessment, diagnosis, and differential diagnoses..."
-          wordCount={wordCount(soapNote.assessment)}
-        />
+              {/* Assessment */}
+              <div className="relative flex items-start">
+                <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center z-10">
+                  <Brain className="h-4 w-4 text-white" />
+                </div>
+                <div className="ml-4 flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="font-bold text-gray-800 text-lg">Assessment</h3>
+                    {wordCount(soapNote.assessment) > 0 && (
+                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        {wordCount(soapNote.assessment)} words
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="bg-white p-3 rounded border border-gray-200">
+                    <Textarea
+                      placeholder="Clinical assessment, diagnosis, and differential diagnoses..."
+                      value={soapNote.assessment}
+                      onChange={(e) => updateSOAPNote('assessment', e.target.value)}
+                      className="min-h-[60px] resize-none border-0 focus:ring-0 p-0 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        {/* Plan Section */}
-        <SOAPSection
-          title="Plan"
-          icon={Target}
-          value={soapNote.plan}
-          onChange={(value) => updateSOAPNote('plan', value)}
-          placeholder="Treatment plan, medications, follow-up recommendations..."
-          wordCount={wordCount(soapNote.plan)}
-        />
+        {/* Plan Section - Collapsible */}
+        <div className="space-y-4">
+          <div 
+            className="flex items-center gap-3 pb-2 border-b-2 border-green-200 cursor-pointer hover:bg-green-50 p-2 rounded transition-colors"
+            onClick={() => setIsPlanExpanded(!isPlanExpanded)}
+          >
+            <Target className="h-6 w-6 text-green-600" />
+            <h2 className="text-xl font-bold text-gray-900">Treatment Plan</h2>
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              {isPlanExpanded ? 'Expanded' : 'Click to Generate'}
+            </Badge>
+            <div className="ml-auto">
+              {isPlanExpanded ? (
+                <ChevronUp className="h-5 w-5 text-green-600" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-green-600" />
+              )}
+            </div>
+          </div>
+          
+          {/* Collapsible content */}
+          {isPlanExpanded && (
+            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <div className="flex items-center gap-2 mb-2">
+                <Pill className="h-4 w-4 text-green-600" />
+                <h3 className="font-semibold text-gray-800">Plan</h3>
+                {wordCount(soapNote.plan) > 0 && (
+                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                    {wordCount(soapNote.plan)} words
+                  </Badge>
+                )}
+              </div>
+              <Textarea
+                placeholder="Treatment plan will be generated using veterinary drug database. Click 'Generate Plan' after SOA is complete..."
+                value={soapNote.plan}
+                onChange={(e) => updateSOAPNote('plan', e.target.value)}
+                className="min-h-[120px] resize-none border-gray-300 focus:border-green-500 focus:ring-green-500"
+              />
+              {!soapNote.plan && (
+                <div className="text-sm text-gray-600 bg-white p-3 rounded-md border border-green-200 mt-3">
+                  <div className="flex items-center gap-2">
+                    <Calculator className="h-4 w-4 text-green-600" />
+                    <span>
+                      <strong>Treatment Plan Generation:</strong> This section will be populated using our veterinary drug database 
+                      to ensure accurate dosages and medication recommendations based on the assessment above.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
