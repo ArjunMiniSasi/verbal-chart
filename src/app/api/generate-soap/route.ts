@@ -7,41 +7,26 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { transcript, patientInfo } = await request.json()
+    const { systemPrompt, userPrompt } = await request.json()
 
-    if (!transcript) {
-      return NextResponse.json({ error: 'No transcript provided' }, { status: 400 })
+    if (!systemPrompt || !userPrompt) {
+      return NextResponse.json({ error: 'System prompt and user prompt are required' }, { status: 400 })
     }
-
-    const prompt = `You are a medical AI assistant. Generate a SOAP note based on the following patient transcript.
-
-Patient Information: ${patientInfo ? JSON.stringify(patientInfo) : 'Not provided'}
-
-Transcript: ${transcript}
-
-Please generate a comprehensive SOAP note with the following sections:
-
-SUBJECTIVE: Patient's chief complaint, history of present illness, and relevant medical history
-OBJECTIVE: Physical examination findings, vital signs, and objective observations
-ASSESSMENT: Clinical impression, differential diagnosis, and assessment
-PLAN: Treatment plan, medications, follow-up, and recommendations
-
-Format the response as a JSON object with keys: subjective, objective, assessment, plan.`
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: 'You are a medical AI assistant specializing in generating accurate SOAP notes. Always maintain medical accuracy and professional standards.'
+          content: systemPrompt
         },
         {
           role: 'user',
-          content: prompt
+          content: userPrompt
         }
       ],
       temperature: 0.3,
-      max_tokens: 2000
+      max_tokens: 4000
     })
 
     const response = completion.choices[0]?.message?.content
@@ -76,25 +61,30 @@ function parseSOAPFromText(text: string) {
     plan: ''
   }
 
-  // Simple text parsing to extract sections
+  // Enhanced text parsing to extract sections
   const lines = text.split('\n')
   let currentSection = ''
 
   for (const line of lines) {
     const lowerLine = line.toLowerCase().trim()
     
-    if (lowerLine.includes('subjective') || lowerLine.includes('chief complaint')) {
+    if (lowerLine.includes('subjective') || lowerLine.includes('s —') || lowerLine.includes('chief complaint')) {
       currentSection = 'subjective'
-    } else if (lowerLine.includes('objective') || lowerLine.includes('physical exam')) {
+    } else if (lowerLine.includes('objective') || lowerLine.includes('o —') || lowerLine.includes('physical exam')) {
       currentSection = 'objective'
-    } else if (lowerLine.includes('assessment') || lowerLine.includes('impression')) {
+    } else if (lowerLine.includes('assessment') || lowerLine.includes('a —') || lowerLine.includes('impression')) {
       currentSection = 'assessment'
-    } else if (lowerLine.includes('plan') || lowerLine.includes('treatment')) {
+    } else if (lowerLine.includes('plan') || lowerLine.includes('p —') || lowerLine.includes('treatment')) {
       currentSection = 'plan'
     } else if (currentSection && line.trim()) {
       sections[currentSection as keyof typeof sections] += line.trim() + ' '
     }
   }
+
+  // Clean up the sections
+  Object.keys(sections).forEach(key => {
+    sections[key as keyof typeof sections] = sections[key as keyof typeof sections].trim()
+  })
 
   return sections
 }

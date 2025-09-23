@@ -1,32 +1,25 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Eye, Download, Save, Loader2 } from "lucide-react";
+import { FileText, Eye, Download, Save, Loader2, Stethoscope, ClipboardList, Brain, Target } from "lucide-react";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
-import { generateSoapNote, SoapNote, testSoapGeneration } from "@/lib/api";
 import { useState } from "react";
+
+// Use the same API base URL as other components
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export const SOAPEditor = () => {
   const { 
     soapNote, 
     updateSOAPNote, 
-    setSOAPNote,
     setShowPreview, 
     transcript,
     currentPatient 
   } = useMedoraStore();
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
-
-  // Debug logging
-  console.log('📝 SOAPEditor rendered with soapNote:', soapNote);
-  
-  // Check if SOAP note has content
-  const hasSOAPContent = soapNote.subjective || soapNote.objective || soapNote.assessment || soapNote.plan;
 
   const generateSOAP = async () => {
     if (transcript.length === 0) {
@@ -38,84 +31,117 @@ export const SOAPEditor = () => {
       return;
     }
 
+    if (!currentPatient) {
+      toast({
+        title: "No patient selected",
+        description: "Please select a patient first.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsGenerating(true);
 
     try {
       const transcriptText = transcript.map(chunk => chunk.text).join(' ');
-      console.log('🤖 SOAPEditor: Generating SOAP note from transcript:', transcriptText.substring(0, 100) + '...');
+      
+      // Simplified and more direct veterinary SOAP prompt
+      const systemPrompt = `You are a veterinary AI assistant. Generate SOAP notes in JSON format.
 
-      // Get previous SOAP notes for this patient (mock data for now)
-      const previousNotes: SoapNote[] = getPreviousSoapNotes(currentPatient?.id || 'demo-patient');
+Return ONLY a valid JSON object with these exact keys:
+{
+  "subjective": "string content here",
+  "objective": "string content here", 
+  "assessment": "string content here",
+  "plan": "string content here"
+}
+
+Rules:
+- Use veterinary medical terminology
+- Be concise but complete
+- Return ONLY the JSON object, no other text
+- Ensure valid JSON syntax`;
+
+      const userPrompt = `Patient: ${currentPatient.pet.name} (${currentPatient.pet.species}, ${currentPatient.pet.breed})
+Age: ${currentPatient.pet.age} years, Weight: ${currentPatient.pet.weight} lbs, Gender: ${currentPatient.pet.gender}
+Owner: ${currentPatient.owner.name}
+
+Clinical Transcript:
+${transcriptText}
+
+Generate a SOAP note for this veterinary consultation.`;
+
+      console.log('🌐 Calling SOAP API:', `${API_BASE_URL}/api/generate-soap`);
+
+      const response = await fetch(`${API_BASE_URL}/api/generate-soap`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          systemPrompt,
+          userPrompt
+        }),
+      });
+
+      console.log('📡 SOAP Response status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('📋 SOAP Response data:', data);
       
-      const soapNote = await generateSoapNote(transcriptText, previousNotes);
-      console.log('✅ SOAPEditor: SOAP note generated:', soapNote);
-      
-      // Store the SOAP note in the application state
-      setSOAPNote(soapNote);
-      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Handle the response - data.soapNote should already be an object
+      let soapData;
+      if (typeof data.soapNote === 'string') {
+        // If it's a string, try to parse it
+        try {
+          soapData = JSON.parse(data.soapNote);
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          // If parsing fails, try to extract JSON from the response
+          const jsonMatch = data.soapNote.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            soapData = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error('Invalid JSON response from API');
+          }
+        }
+      } else if (typeof data.soapNote === 'object' && data.soapNote !== null) {
+        // Use object response directly
+        soapData = data.soapNote;
+      } else {
+        throw new Error('Unexpected response format from API');
+      }
+
+      console.log('📝 Parsed SOAP data:', soapData);
+
+      // Update SOAP notes with the parsed data
+      updateSOAPNote('subjective', soapData.subjective || '');
+      updateSOAPNote('objective', soapData.objective || '');
+      updateSOAPNote('assessment', soapData.assessment || '');
+      updateSOAPNote('plan', soapData.plan || '');
+
       toast({
-        title: "SOAP Notes Generated",
-        description: "AI-generated SOAP notes have been created based on the transcript.",
+        title: "SOAP Generated Successfully",
+        description: "AI-generated SOAP note from transcript using veterinary standards.",
       });
 
     } catch (error) {
-      console.error('❌ SOAPEditor: Error generating SOAP notes:', error);
+      console.error('SOAP generation error:', error);
       toast({
-        title: "Generation Failed",
-        description: "Failed to generate SOAP notes. Please try again.",
+        title: "SOAP Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate SOAP notes. Please try again.",
         variant: "destructive"
       });
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  // Mock function to get previous SOAP notes for a patient
-  const getPreviousSoapNotes = (patientId: string): SoapNote[] => {
-    // In a real app, this would fetch from a database
-    // For now, return mock historical data
-    const mockHistory: Record<string, SoapNote[]> = {
-      'demo-patient': [
-        {
-          subjective: "Owner reports 2-week history of intermittent coughing, especially after exercise. Dog otherwise active and eating normally.",
-          objective: "Temp 101.5°F, HR 95 bpm, RR 28/min. Lungs clear on auscultation. No nasal discharge. Weight stable.",
-          assessment: "Mild upper respiratory irritation, possible environmental allergies",
-          plan: "Monitor symptoms, consider antihistamines if coughing persists. Return in 2 weeks if no improvement."
-        }
-      ],
-      'MRN508532597': [
-        {
-          subjective: "Initial visit - owner concerned about recent lethargy and decreased appetite over past 3 days.",
-          objective: "Temp 102.8°F, HR 110 bpm, RR 32/min. Slightly dehydrated. Abdomen soft, no masses palpated.",
-          assessment: "Possible gastrointestinal upset, rule out foreign body ingestion",
-          plan: "Withhold food for 12 hours, then bland diet. Monitor closely. Return if vomiting or lethargy worsens."
-        }
-      ]
-    };
-
-    return mockHistory[patientId] || [];
-  };
-
-  const testBackend = async () => {
-    setIsTesting(true);
-    try {
-      console.log('🧪 Testing backend SOAP generation...');
-      const result = await testSoapGeneration();
-      console.log('✅ Backend test successful:', result);
-      
-      toast({
-        title: "Backend Test Successful",
-        description: "Backend SOAP generation is working correctly.",
-      });
-    } catch (error) {
-      console.error('❌ Backend test failed:', error);
-      toast({
-        title: "Backend Test Failed",
-        description: error instanceof Error ? error.message : "Backend test failed",
-        variant: "destructive"
-      });
-    } finally {
-      setIsTesting(false);
     }
   };
 
@@ -127,21 +153,52 @@ export const SOAPEditor = () => {
     total + wordCount(section), 0
   );
 
+  const SOAPSection = ({ 
+    title, 
+    icon: Icon, 
+    value, 
+    onChange, 
+    placeholder, 
+    wordCount: sectionWordCount 
+  }: {
+    title: string;
+    icon: any;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+    wordCount: number;
+  }) => (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-blue-600" />
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+        </div>
+        {sectionWordCount > 0 && (
+          <Badge variant="outline" className="ml-auto bg-blue-50 text-blue-700 border-blue-200">
+            {sectionWordCount} words
+          </Badge>
+        )}
+      </div>
+      <Textarea
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="min-h-[120px] resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+      />
+    </div>
+  );
+
   return (
     <Card className="h-full">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-medical-primary" />
-            <h3 className="text-lg font-semibold">SOAP Editor</h3>
-            {hasSOAPContent && (
-              <Badge variant="default" className="bg-green-100 text-green-800">
-                AI Generated
-              </Badge>
-            )}
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FileText className="h-6 w-6 text-blue-600" />
+            <CardTitle className="text-xl font-bold text-gray-900">SOAP Editor</CardTitle>
             {totalWords > 0 && (
-              <Badge variant="outline">
-                {totalWords} words
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                {totalWords} words total
               </Badge>
             )}
           </div>
@@ -149,116 +206,71 @@ export const SOAPEditor = () => {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={testBackend}
-              disabled={isTesting}
-              className="gap-2"
-            >
-              {isTesting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              {isTesting ? "Testing..." : "Test Backend"}
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
               onClick={generateSOAP}
               disabled={transcript.length === 0 || isGenerating}
-              className="gap-2"
+              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
             >
               {isGenerating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              {isGenerating ? "Generating..." : "Generate SOAP"}
+              {isGenerating ? 'Generating...' : 'Generate SOAP'}
             </Button>
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => setShowPreview(true)}
               disabled={totalWords === 0}
-              className="gap-2"
+              className="gap-2 border-gray-300 hover:bg-gray-50"
             >
               <Eye className="h-4 w-4" />
               Preview
             </Button>
           </div>
         </div>
+      </CardHeader>
 
-        <Tabs defaultValue="subjective" className="h-[500px]">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="subjective" className="relative">
-              Subjective
-              {wordCount(soapNote.subjective) > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
-                  {wordCount(soapNote.subjective)}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="objective" className="relative">
-              Objective
-              {wordCount(soapNote.objective) > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
-                  {wordCount(soapNote.objective)}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="assessment" className="relative">
-              Assessment
-              {wordCount(soapNote.assessment) > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
-                  {wordCount(soapNote.assessment)}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="plan" className="relative">
-              Plan
-              {wordCount(soapNote.plan) > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
-                  {wordCount(soapNote.plan)}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
+      <CardContent className="space-y-8">
+        {/* Subjective Section */}
+        <SOAPSection
+          title="Subjective"
+          icon={Stethoscope}
+          value={soapNote.subjective}
+          onChange={(value) => updateSOAPNote('subjective', value)}
+          placeholder="Patient's subjective symptoms, history, and owner observations..."
+          wordCount={wordCount(soapNote.subjective)}
+        />
 
-          <TabsContent value="subjective" className="mt-4 h-[400px]">
-            <Textarea
-              placeholder="Patient's subjective symptoms and history..."
-              value={soapNote.subjective}
-              onChange={(e) => updateSOAPNote('subjective', e.target.value)}
-              className="h-full resize-none"
-            />
-          </TabsContent>
+        {/* Objective Section */}
+        <SOAPSection
+          title="Objective"
+          icon={ClipboardList}
+          value={soapNote.objective}
+          onChange={(value) => updateSOAPNote('objective', value)}
+          placeholder="Objective findings, vital signs, physical examination results..."
+          wordCount={wordCount(soapNote.objective)}
+        />
 
-          <TabsContent value="objective" className="mt-4 h-[400px]">
-            <Textarea
-              placeholder="Objective findings, vital signs, physical examination..."
-              value={soapNote.objective}
-              onChange={(e) => updateSOAPNote('objective', e.target.value)}
-              className="h-full resize-none"
-            />
-          </TabsContent>
+        {/* Assessment Section */}
+        <SOAPSection
+          title="Assessment"
+          icon={Brain}
+          value={soapNote.assessment}
+          onChange={(value) => updateSOAPNote('assessment', value)}
+          placeholder="Clinical assessment, diagnosis, and differential diagnoses..."
+          wordCount={wordCount(soapNote.assessment)}
+        />
 
-          <TabsContent value="assessment" className="mt-4 h-[400px]">
-            <Textarea
-              placeholder="Clinical assessment and diagnosis..."
-              value={soapNote.assessment}
-              onChange={(e) => updateSOAPNote('assessment', e.target.value)}
-              className="h-full resize-none"
-            />
-          </TabsContent>
-
-          <TabsContent value="plan" className="mt-4 h-[400px]">
-            <Textarea
-              placeholder="Treatment plan, follow-up, and recommendations..."
-              value={soapNote.plan}
-              onChange={(e) => updateSOAPNote('plan', e.target.value)}
-              className="h-full resize-none"
-            />
-          </TabsContent>
-        </Tabs>
+        {/* Plan Section */}
+        <SOAPSection
+          title="Plan"
+          icon={Target}
+          value={soapNote.plan}
+          onChange={(value) => updateSOAPNote('plan', value)}
+          placeholder="Treatment plan, medications, follow-up recommendations..."
+          wordCount={wordCount(soapNote.plan)}
+        />
       </CardContent>
     </Card>
   );

@@ -53,55 +53,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Medora Backend is running' });
 });
 
-// Test SOAP generation endpoint
-app.post('/api/test-soap', async (req, res) => {
-  try {
-    const testTranscript = "The dog has been coughing for 3 days. Owner says it worsens at night. Temperature is 102.5°F, heart rate elevated. Lungs sound clear. Suspect kennel cough.";
-    
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are a medical scribe specialized in veterinary care. 
-Your job is to extract and summarize the relevant information 
-from the transcript into a structured SOAP note. 
-Do not copy raw dialogue. Do not include greetings or small talk. 
-Focus on clinical details only. 
-
-IMPORTANT: You must respond with ONLY valid JSON in this exact format:
-{
-  "subjective": "Patient's reported symptoms and history",
-  "objective": "Physical examination findings and observations", 
-  "assessment": "Clinical diagnosis and evaluation",
-  "plan": "Treatment plan and follow-up recommendations"
-}
-
-Do not include any text before or after the JSON. Do not use markdown formatting.`
-        },
-        {
-          role: "user",
-          content: `Please create a SOAP note from this consultation transcript:\n\n${testTranscript}`
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 1000,
-    });
-
-    const content = response.choices[0]?.message?.content;
-    console.log('Test SOAP response:', content);
-    
-    res.json({ 
-      status: 'success', 
-      response: content,
-      parsed: JSON.parse(content)
-    });
-  } catch (error) {
-    console.error('Test SOAP error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Transcription endpoint
 app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
   try {
@@ -148,132 +99,126 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-// SOAP note generation endpoint
+// SOAP Generation endpoint
 app.post('/api/generate-soap', async (req, res) => {
   try {
-    const { transcript, previousNotes = [] } = req.body;
+    const { systemPrompt, userPrompt } = req.body;
 
-    if (!transcript || !transcript.trim()) {
-      return res.status(400).json({ error: 'Transcript is required' });
+    if (!systemPrompt || !userPrompt) {
+      return res.status(400).json({ error: 'System prompt and user prompt are required' });
     }
 
-    console.log(`Generating SOAP note for transcript: ${transcript.substring(0, 100)}...`);
+    console.log('🤖 Generating SOAP with OpenAI...');
+    console.log('📝 User prompt length:', userPrompt.length);
 
-    // Prepare historical context
-    const historyContext = previousNotes.length > 0 
-      ? previousNotes.map((note, index) => 
-          `Previous Note ${index + 1}:\n` +
-          `Subjective: ${note.subjective}\n` +
-          `Objective: ${note.objective}\n` +
-          `Assessment: ${note.assessment}\n` +
-          `Plan: ${note.plan}\n`
-        ).join('\n---\n')
-      : 'No previous medical history available.';
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
       messages: [
         {
-          role: "system",
-          content: `You are a medical scribe specialized in veterinary care. 
-Your job is to extract and summarize the relevant information 
-from the transcript into a structured SOAP note. 
-Do not copy raw dialogue. Do not include greetings or small talk. 
-Focus on clinical details only. 
-
-IMPORTANT: You must respond with ONLY valid JSON in this exact format:
-{
-  "subjective": "Patient's reported symptoms and history",
-  "objective": "Physical examination findings and observations", 
-  "assessment": "Clinical diagnosis and evaluation",
-  "plan": "Treatment plan and follow-up recommendations"
-}
-
-Do not include any text before or after the JSON. Do not use markdown formatting.
-
-Additional context: Consider the patient's medical history from previous SOAP notes to ensure continuity and reference ongoing treatments or follow-up items where relevant.`
+          role: 'system',
+          content: systemPrompt
         },
         {
-          role: "user",
-          content: `Please create a SOAP note from this consultation transcript, considering the patient's medical history:
-
-CURRENT CONSULTATION TRANSCRIPT:
-${transcript}
-
-PATIENT'S MEDICAL HISTORY:
-${historyContext}
-
-Generate a new SOAP note that builds upon the historical context while focusing on today's visit.`
+          role: 'user',
+          content: userPrompt
         }
       ],
       temperature: 0.3,
-      max_tokens: 1200,
+      max_tokens: 4000
     });
 
-    const content = response.choices[0]?.message?.content;
+    const response = completion.choices[0]?.message?.content;
+    console.log('📋 Raw OpenAI response:', response);
     
-    if (!content) {
-      throw new Error('No response content from OpenAI');
+    if (!response) {
+      throw new Error('No response from OpenAI');
     }
 
-    console.log('Raw OpenAI response:', content);
+    // Clean the response to extract JSON from markdown code blocks
+    let cleanedResponse = response.trim();
+    
+    // Remove markdown code block markers
+    if (cleanedResponse.startsWith('```json')) {
+      cleanedResponse = cleanedResponse.replace(/^```json\s*/, '');
+    }
+    if (cleanedResponse.startsWith('```')) {
+      cleanedResponse = cleanedResponse.replace(/^```\s*/, '');
+    }
+    if (cleanedResponse.endsWith('```')) {
+      cleanedResponse = cleanedResponse.replace(/\s*```$/, '');
+    }
+    
+    console.log('🧹 Cleaned response:', cleanedResponse);
 
-    // Try to parse the JSON response
+    // Try to parse as JSON
+    let soapNote;
     try {
-      const soapNote = JSON.parse(content);
-      console.log('Parsed SOAP note:', soapNote);
-      
-      // Validate that all required fields are present
-      if (!soapNote.subjective || !soapNote.objective || !soapNote.assessment || !soapNote.plan) {
-        console.error('Missing required fields:', {
-          subjective: !!soapNote.subjective,
-          objective: !!soapNote.objective,
-          assessment: !!soapNote.assessment,
-          plan: !!soapNote.plan
-        });
-        throw new Error('Invalid SOAP note structure - missing required fields');
-      }
-
-      console.log('SOAP note generated successfully');
-      res.json(soapNote);
-      
+      soapNote = JSON.parse(cleanedResponse);
+      console.log('✅ Successfully parsed JSON response');
     } catch (parseError) {
-      console.error('Failed to parse JSON response:', parseError);
-      console.log('Raw content that failed to parse:', content);
+      console.log('⚠️ JSON parse failed, trying text parsing...');
+      console.log('Parse error:', parseError.message);
       
-      // Try to extract SOAP sections using regex as fallback
-      const subjectiveMatch = content.match(/subjective[":\s]*([^}]+)/i);
-      const objectiveMatch = content.match(/objective[":\s]*([^}]+)/i);
-      const assessmentMatch = content.match(/assessment[":\s]*([^}]+)/i);
-      const planMatch = content.match(/plan[":\s]*([^}]+)/i);
-
-      if (subjectiveMatch && objectiveMatch && assessmentMatch && planMatch) {
-        console.log('Extracted SOAP note using regex fallback');
-        res.json({
-          subjective: subjectiveMatch[1].trim().replace(/[",}]/g, ''),
-          objective: objectiveMatch[1].trim().replace(/[",}]/g, ''),
-          assessment: assessmentMatch[1].trim().replace(/[",}]/g, ''),
-          plan: planMatch[1].trim().replace(/[",}]/g, '')
-        });
-      } else {
-        // Return fallback empty SOAP note
-        res.json({
-          subjective: "Unable to generate subjective notes from transcript.",
-          objective: "Unable to generate objective findings from transcript.",
-          assessment: "Unable to generate assessment from transcript.",
-          plan: "Unable to generate treatment plan from transcript."
-        });
-      }
+      // Fallback: parse the text response
+      soapNote = parseSOAPFromText(cleanedResponse);
+      console.log('📝 Text parsing result:', soapNote);
     }
 
+    console.log('🎯 Final SOAP note:', soapNote);
+    res.json({ soapNote });
   } catch (error) {
-    console.error('Error generating SOAP note:', error);
+    console.error('SOAP generation error:', error);
     res.status(500).json({ 
-      error: 'SOAP note generation failed', 
+      error: 'Failed to generate SOAP notes',
       message: error.message 
     });
   }
 });
+
+// Helper function to parse SOAP from text
+function parseSOAPFromText(text) {
+  console.log('🔍 Parsing text for SOAP sections...');
+  console.log('Text to parse:', text.substring(0, 200) + '...');
+  
+  const sections = {
+    subjective: '',
+    objective: '',
+    assessment: '',
+    plan: ''
+  };
+
+  // Enhanced text parsing to extract sections
+  const lines = text.split('\n');
+  let currentSection = '';
+
+  for (const line of lines) {
+    const lowerLine = line.toLowerCase().trim();
+    
+    if (lowerLine.includes('subjective') || lowerLine.includes('s —') || lowerLine.includes('chief complaint')) {
+      currentSection = 'subjective';
+      console.log('📍 Found subjective section');
+    } else if (lowerLine.includes('objective') || lowerLine.includes('o —') || lowerLine.includes('physical exam')) {
+      currentSection = 'objective';
+      console.log('📍 Found objective section');
+    } else if (lowerLine.includes('assessment') || lowerLine.includes('a —') || lowerLine.includes('impression')) {
+      currentSection = 'assessment';
+      console.log('📍 Found assessment section');
+    } else if (lowerLine.includes('plan') || lowerLine.includes('p —') || lowerLine.includes('treatment')) {
+      currentSection = 'plan';
+      console.log('📍 Found plan section');
+    } else if (currentSection && line.trim()) {
+      sections[currentSection] += line.trim() + ' ';
+    }
+  }
+
+  // Clean up the sections
+  Object.keys(sections).forEach(key => {
+    sections[key] = sections[key].trim();
+  });
+
+  console.log('📊 Parsed sections:', sections);
+  return sections;
+}
 
 // Error handling middleware
 app.use((error, req, res, next) => {
