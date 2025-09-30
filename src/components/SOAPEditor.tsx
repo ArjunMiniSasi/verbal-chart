@@ -18,6 +18,10 @@ export const SOAPEditor = () => {
     transcript,
     currentPatient 
   } = useMedoraStore();
+
+  // Debug: Log current soapNote state
+  console.log('🔍 Current soapNote state:', soapNote);
+  console.log('🔍 Plan content:', soapNote.plan);
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
@@ -82,8 +86,8 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          systemPrompt,
-          userPrompt
+          transcript: transcriptText,
+          previousNotes: []
         }),
       });
 
@@ -95,6 +99,8 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
 
       const data = await response.json();
       console.log('📋 SOAP Response data:', data);
+      console.log('📋 Response status:', response.status);
+      console.log('📋 Response headers:', response.headers);
       
       if (data.error) {
         throw new Error(data.error);
@@ -149,6 +155,9 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
   };
 
   const generatePlan = async () => {
+    console.log('🚀 Generate Plan button clicked!');
+    console.log('🚀 Current soapNote.assessment:', soapNote.assessment);
+    
     if (!soapNote.assessment) {
       toast({
         title: "Assessment required",
@@ -161,19 +170,71 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
     // Expand the plan section when generate plan is clicked
     setIsPlanExpanded(true);
     setIsGeneratingPlan(true);
+    console.log('🚀 Starting plan generation...');
 
     try {
-      // This will be implemented when the veterinary drug database is ready
-      // For now, show a placeholder message
-      toast({
-        title: "Plan Generation Coming Soon",
-        description: "Treatment plan generation will be available once the veterinary drug database is integrated.",
-        variant: "default"
+      const transcriptText = transcript.map(chunk => chunk.text).join(' ');
+      console.log('🚀 Transcript text:', transcriptText);
+      console.log('🚀 API URL:', `${API_BASE_URL}/api/generate-soap`);
+      
+      // Call the backend API to generate enhanced SOAP with PlumbRAG
+      const response = await fetch(`${API_BASE_URL}/api/generate-soap`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcript: transcriptText,
+          previousNotes: []
+        }),
       });
+      
+      console.log('🚀 API Response received:', response);
 
-      // Placeholder for future implementation
-      // const planData = await generateTreatmentPlan(soapNote.assessment, currentPatient);
-      // updateSOAPNote('plan', planData);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('📋 Enhanced SOAP Response data:', data);
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Handle the response - data.soapNote should already be an object
+      let soapData;
+      if (typeof data.soapNote === 'string') {
+        // If it's a string, try to parse it
+        try {
+          soapData = JSON.parse(data.soapNote);
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          // If parsing fails, try to extract JSON from the response
+          const jsonMatch = data.soapNote.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            soapData = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error('Invalid response format');
+          }
+        }
+      } else {
+        soapData = data.soapNote;
+      }
+
+      // Update the SOAP note with the enhanced plan
+      if (soapData.plan) {
+        console.log('🔍 Received plan data:', soapData.plan);
+        updateSOAPNote('plan', soapData.plan);
+        
+        toast({
+          title: "Plan Generated Successfully",
+          description: "Treatment plan has been generated with PlumbRAG drug recommendations.",
+          variant: "default"
+        });
+      } else {
+        throw new Error('No plan data received');
+      }
 
     } catch (error) {
       console.error('Plan generation error:', error);
@@ -190,6 +251,93 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
   const wordCount = (text: string) => {
     return text.trim() ? text.trim().split(/\s+/).length : 0;
   };
+
+  // Parse plan into individual sections
+  const parsePlanSections = (planText: string) => {
+    console.log('🔍 Parsing plan text:', planText);
+    const sections = [];
+    const lines = planText.split('\n');
+    let currentSection = null;
+    let currentContent = [];
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      
+      // Check if this is a section header (starts with number and **) - updated regex to handle content on same line
+      const sectionMatch = trimmedLine.match(/^\d+\.\s*\*\*([^*]+)\*\*:?\s*(.*)$/);
+      
+      if (sectionMatch) {
+        // Save previous section if exists
+        if (currentSection) {
+          sections.push({
+            title: currentSection,
+            content: currentContent.join('\n').trim()
+          });
+        }
+        
+        // Start new section
+        currentSection = sectionMatch[1];
+        const sectionContent = sectionMatch[2].trim();
+        currentContent = sectionContent ? [sectionContent] : [];
+        console.log('📝 Found section:', currentSection, 'with content:', sectionContent);
+      } else if (trimmedLine && currentSection) {
+        // Add content to current section (remove leading dashes and clean up)
+        const cleanLine = trimmedLine.replace(/^-\s*/, '').trim();
+        if (cleanLine) {
+          currentContent.push(cleanLine);
+        }
+      }
+    }
+    
+    // Don't forget the last section
+    if (currentSection) {
+      sections.push({
+        title: currentSection,
+        content: currentContent.join('\n').trim()
+      });
+    }
+
+    console.log('📋 Parsed sections:', sections);
+    return sections;
+  };
+
+  // Get appropriate icon for each section
+  const getSectionIcon = (title: string) => {
+    const lowerTitle = title.toLowerCase();
+    if (lowerTitle.includes('diagnostic')) {
+      return <ClipboardList className="h-4 w-4 text-white" />;
+    } else if (lowerTitle.includes('medication')) {
+      return <Pill className="h-4 w-4 text-white" />;
+    } else if (lowerTitle.includes('follow')) {
+      return <Target className="h-4 w-4 text-white" />;
+    } else if (lowerTitle.includes('education') || lowerTitle.includes('client') || lowerTitle.includes('owner')) {
+      return <FileText className="h-4 w-4 text-white" />;
+    } else if (lowerTitle.includes('environmental')) {
+      return <Calculator className="h-4 w-4 text-white" />;
+    } else {
+      return <Target className="h-4 w-4 text-white" />;
+    }
+  };
+
+  // Update individual plan section
+  const updatePlanSection = (sectionIndex: number, newContent: string) => {
+    const sections = parsePlanSections(soapNote.plan);
+    if (sections[sectionIndex]) {
+      sections[sectionIndex].content = newContent;
+      
+      // Reconstruct the full plan
+      const reconstructedPlan = sections.map((section, index) => {
+        const contentLines = section.content.split('\n').map(line => 
+          line.trim() ? `   - ${line.trim()}` : ''
+        ).filter(line => line).join('\n');
+        
+        return `${index + 1}. **${section.title}:**\n${contentLines}`;
+      }).join('\n\n');
+      
+      updateSOAPNote('plan', `**Plan:**\n\n${reconstructedPlan}`);
+    }
+  };
+
 
   const totalWords = Object.values(soapNote).reduce((total, section) => 
     total + wordCount(section), 0
@@ -226,7 +374,10 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={generatePlan}
+              onClick={() => {
+                console.log('🚀 BUTTON CLICKED!');
+                generatePlan();
+              }}
               disabled={!soapNote.assessment || isGeneratingPlan}
               className="gap-2 bg-green-600 hover:bg-green-700 text-white border-green-600"
             >
@@ -346,57 +497,78 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
           </div>
         </div>
 
-        {/* Plan Section - Collapsible */}
+        {/* Plan Section - Timeline Style with Individual Sections */}
         <div className="space-y-4">
-          <div 
-            className="flex items-center gap-3 pb-2 border-b-2 border-green-200 cursor-pointer hover:bg-green-50 p-2 rounded transition-colors"
-            onClick={() => setIsPlanExpanded(!isPlanExpanded)}
-          >
+          <div className="flex items-center gap-3 pb-2 border-b-2 border-green-200">
             <Target className="h-6 w-6 text-green-600" />
             <h2 className="text-xl font-bold text-gray-900">Treatment Plan</h2>
             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              {isPlanExpanded ? 'Expanded' : 'Click to Generate'}
+              PlumbRAG Enhanced
             </Badge>
-            <div className="ml-auto">
-              {isPlanExpanded ? (
-                <ChevronUp className="h-5 w-5 text-green-600" />
-              ) : (
-                <ChevronDown className="h-5 w-5 text-green-600" />
-              )}
-            </div>
           </div>
           
-          {/* Collapsible content */}
-          {isPlanExpanded && (
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Pill className="h-4 w-4 text-green-600" />
-                <h3 className="font-semibold text-gray-800">Plan</h3>
-                {wordCount(soapNote.plan) > 0 && (
-                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                    {wordCount(soapNote.plan)} words
-                  </Badge>
-                )}
+          <div className="relative">
+            {/* Vertical timeline line */}
+            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-green-300"></div>
+            
+            {soapNote.plan ? (
+              <div className="space-y-6">
+                {parsePlanSections(soapNote.plan).map((section, index) => (
+                  <div key={index} className="relative flex items-start">
+                    <div className="flex-shrink-0 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center z-10">
+                      {getSectionIcon(section.title)}
+                    </div>
+                    <div className="ml-4 flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-bold text-gray-800 text-lg">{section.title}</h3>
+                        {wordCount(section.content) > 0 && (
+                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                            {wordCount(section.content)} words
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                        <Textarea
+                          placeholder={`Enter ${section.title.toLowerCase()} details...`}
+                          value={section.content}
+                          onChange={(e) => updatePlanSection(index, e.target.value)}
+                          className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <Textarea
-                placeholder="Treatment plan will be generated using veterinary drug database. Click 'Generate Plan' after SOA is complete..."
-                value={soapNote.plan}
-                onChange={(e) => updateSOAPNote('plan', e.target.value)}
-                className="min-h-[120px] resize-none border-gray-300 focus:border-green-500 focus:ring-green-500"
-              />
-              {!soapNote.plan && (
-                <div className="text-sm text-gray-600 bg-white p-3 rounded-md border border-green-200 mt-3">
-                  <div className="flex items-center gap-2">
-                    <Calculator className="h-4 w-4 text-green-600" />
-                    <span>
-                      <strong>Treatment Plan Generation:</strong> This section will be populated using our veterinary drug database 
-                      to ensure accurate dosages and medication recommendations based on the assessment above.
-                    </span>
+            ) : (
+              <div className="relative flex items-start">
+                <div className="flex-shrink-0 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center z-10">
+                  <Target className="h-4 w-4 text-white" />
+                </div>
+                <div className="ml-4 flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="font-bold text-gray-800 text-lg">Plan</h3>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                    <Textarea
+                      placeholder="Treatment plan will be generated using PlumbRAG veterinary drug database. Click 'Generate Plan' after SOA is complete..."
+                      value={soapNote.plan}
+                      onChange={(e) => updateSOAPNote('plan', e.target.value)}
+                      className="min-h-[120px] resize-none border-0 focus:ring-0 p-0 text-sm"
+                    />
+                  </div>
+                  <div className="text-sm text-gray-600 bg-green-50 p-3 rounded-md border border-green-200 mt-3">
+                    <div className="flex items-center gap-2">
+                      <Calculator className="h-4 w-4 text-green-600" />
+                      <span>
+                        <strong>PlumbRAG Treatment Plan:</strong> This section will be populated using our veterinary drug database 
+                        to ensure accurate dosages and medication recommendations based on the assessment above.
+                      </span>
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

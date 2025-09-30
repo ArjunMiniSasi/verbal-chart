@@ -3,7 +3,7 @@ import { Mic, Square, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
-import { transcribeAudio, generateSoapNote, SoapNote } from "@/lib/api";
+import { transcribeAudio } from "@/lib/api";
 import { useState, useRef } from "react";
 
 export const VoiceButton = () => {
@@ -11,8 +11,7 @@ export const VoiceButton = () => {
     isRecording, 
     setRecording, 
     addTranscriptChunk, 
-    currentPatient,
-    setSOAPNote
+    currentPatient
   } = useMedoraStore();
   
   const [isProcessing, setIsProcessing] = useState(false);
@@ -159,47 +158,8 @@ export const VoiceButton = () => {
         description: `Successfully transcribed ${recordingTime}s of audio (${result.language})`,
       });
 
-      // Step 2: Generate SOAP note via backend API
-      if (result.text && result.text.trim().length > 0) {
-        console.log('🤖 Generating SOAP note via backend API...');
-        
-        toast({
-          title: "Generating SOAP Note",
-          description: "Creating structured SOAP notes with patient history...",
-        });
-
-        try {
-          // Get previous SOAP notes for this patient (mock data for now)
-          const previousNotes: SoapNote[] = getPreviousSoapNotes(currentPatient?.id || 'demo-patient');
-          
-          const soapNote = await generateSoapNote(result.text, previousNotes);
-          console.log('✅ SOAP note with history generated:', soapNote);
-          
-          // Store the SOAP note in the application state
-          console.log('💾 Storing SOAP note in application state...');
-          setSOAPNote(soapNote);
-          console.log('✅ SOAP note stored in application state');
-          
-          console.log('📝 Generated SOAP Note with History:');
-          console.log('Subjective:', soapNote.subjective);
-          console.log('Objective:', soapNote.objective);
-          console.log('Assessment:', soapNote.assessment);
-          console.log('Plan:', soapNote.plan);
-
-          toast({
-            title: "SOAP Note Generated",
-            description: "Successfully created structured SOAP notes with patient history.",
-          });
-
-        } catch (soapError) {
-          console.error('❌ Error generating SOAP note:', soapError);
-          toast({
-            title: "SOAP Generation Failed",
-            description: "Transcription successful, but SOAP note generation failed.",
-            variant: "destructive"
-          });
-        }
-      }
+      // SOAP generation is now handled manually via the "Generate SOAP" button
+      console.log('✅ Voice transcription completed. Use "Generate SOAP" button to create SOAP notes.');
 
     } catch (error) {
       console.error('❌ Error processing recording:', error);
@@ -231,31 +191,6 @@ export const VoiceButton = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Mock function to get previous SOAP notes for a patient
-  const getPreviousSoapNotes = (patientId: string): SoapNote[] => {
-    // In a real app, this would fetch from a database
-    // For now, return mock historical data
-    const mockHistory: Record<string, SoapNote[]> = {
-      'demo-patient': [
-        {
-          subjective: "Owner reports 2-week history of intermittent coughing, especially after exercise. Dog otherwise active and eating normally.",
-          objective: "Temp 101.5°F, HR 95 bpm, RR 28/min. Lungs clear on auscultation. No nasal discharge. Weight stable.",
-          assessment: "Mild upper respiratory irritation, possible environmental allergies",
-          plan: "Monitor symptoms, consider antihistamines if coughing persists. Return in 2 weeks if no improvement."
-        }
-      ],
-      'MRN508532597': [
-        {
-          subjective: "Initial visit - owner concerned about recent lethargy and decreased appetite over past 3 days.",
-          objective: "Temp 102.8°F, HR 110 bpm, RR 32/min. Slightly dehydrated. Abdomen soft, no masses palpated.",
-          assessment: "Possible gastrointestinal upset, rule out foreign body ingestion",
-          plan: "Withhold food for 12 hours, then bland diet. Monitor closely. Return if vomiting or lethargy worsens."
-        }
-      ]
-    };
-
-    return mockHistory[patientId] || [];
-  };
 
   return (
     <div className="text-center">

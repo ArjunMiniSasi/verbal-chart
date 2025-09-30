@@ -20,107 +20,17 @@ import {
   AlertCircle
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { mockPatients } from "@/mocks/seeds"
 
 const DoctorHome = () => {
   const navigate = useNavigate()
 
-  // Mock data - all patients with different statuses
-  const allPatients = [
-    {
-      id: '1',
-      name: 'Sarah Johnson',
-      age: 34,
-      gender: 'Female',
-      patientId: 'MRN001',
-      lastVisit: '2024-01-15',
-      phone: '+1 (555) 123-4567',
-      email: 'sarah.johnson@email.com',
-      status: 'active' as const,
-      appointmentStatus: 'done' as const,
-      lastSOAP: 'Patient reports severe bilateral headaches for 3 days, worse in morning...',
-      appointmentTime: '09:00 AM',
-      priority: 'normal' as const
-    },
-    {
-      id: '2',
-      name: 'Michael Chen',
-      age: 67,
-      gender: 'Male',
-      patientId: 'MRN002',
-      lastVisit: '2024-01-15',
-      phone: '+1 (555) 234-5678',
-      email: 'michael.chen@email.com',
-      status: 'active' as const,
-      appointmentStatus: 'pending' as const,
-      lastSOAP: 'Chest pain and shortness of breath. Substernal pressure-like pain...',
-      appointmentTime: '10:30 AM',
-      priority: 'high' as const
-    },
-    {
-      id: '3',
-      name: 'Emma Rodriguez',
-      age: 29,
-      gender: 'Female',
-      patientId: 'MRN003',
-      lastVisit: '2024-01-15',
-      phone: '+1 (555) 345-6789',
-      email: 'emma.rodriguez@email.com',
-      status: 'active' as const,
-      appointmentStatus: 'done' as const,
-      lastSOAP: 'Persistent cough and fever for 5 days. Productive cough with yellow sputum...',
-      appointmentTime: '11:15 AM',
-      priority: 'normal' as const
-    },
-    {
-      id: '4',
-      name: 'David Wilson',
-      age: 45,
-      gender: 'Male',
-      patientId: 'MRN004',
-      lastVisit: '2024-01-15',
-      phone: '+1 (555) 456-7890',
-      email: 'david.wilson@email.com',
-      status: 'active' as const,
-      appointmentStatus: 'pending' as const,
-      lastSOAP: 'Follow-up visit for diabetes management. Blood glucose levels...',
-      appointmentTime: '02:00 PM',
-      priority: 'medium' as const
-    },
-    {
-      id: '5',
-      name: 'Lisa Anderson',
-      age: 52,
-      gender: 'Female',
-      patientId: 'MRN005',
-      lastVisit: '2024-01-15',
-      phone: '+1 (555) 567-8901',
-      email: 'lisa.anderson@email.com',
-      status: 'active' as const,
-      appointmentStatus: 'done' as const,
-      lastSOAP: 'Annual checkup completed. Blood pressure well controlled...',
-      appointmentTime: '08:30 AM',
-      priority: 'normal' as const
-    },
-    {
-      id: '6',
-      name: 'Robert Brown',
-      age: 38,
-      gender: 'Male',
-      patientId: 'MRN006',
-      lastVisit: '2024-01-15',
-      phone: '+1 (555) 678-9012',
-      email: 'robert.brown@email.com',
-      status: 'active' as const,
-      appointmentStatus: 'pending' as const,
-      lastSOAP: 'New patient consultation for back pain. Physical therapy referral...',
-      appointmentTime: '03:30 PM',
-      priority: 'high' as const
-    }
-  ]
+  // Use the mock patients from seeds
+  const allPatients = mockPatients
 
-  // Filter patients by appointment status
-  const pendingPatients = allPatients.filter(patient => patient.appointmentStatus === 'pending')
-  const donePatients = allPatients.filter(patient => patient.appointmentStatus === 'done')
+  // Filter patients - for now, just use all patients for both tabs
+  const pendingPatients = allPatients.slice(0, 3) // First 3 patients as "pending"
+  const donePatients = allPatients.slice(3) // Rest as "done"
 
   const analyticsData = {
     totalPatients: 1247,
