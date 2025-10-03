@@ -4,6 +4,7 @@ const OpenAI = require('openai');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const { initializePlumbRAG, generateEnhancedSOAP } = require('./plumbRAG');
 require('dotenv').config();
 
 const app = express();
@@ -11,7 +12,7 @@ const PORT = process.env.PORT || 3001;
 
 // Initialize OpenAI
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY || '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'
 });
 
 // Middleware
@@ -99,77 +100,28 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-// SOAP Generation endpoint
+// Enhanced SOAP Generation endpoint with PlumbRAG
 app.post('/api/generate-soap', async (req, res) => {
   try {
-    const { systemPrompt, userPrompt } = req.body;
+    const { transcript, previousNotes } = req.body;
 
-    if (!systemPrompt || !userPrompt) {
-      return res.status(400).json({ error: 'System prompt and user prompt are required' });
+    if (!transcript) {
+      return res.status(400).json({ error: 'Transcript is required' });
     }
 
-    console.log('🤖 Generating SOAP with OpenAI...');
-    console.log('📝 User prompt length:', userPrompt.length);
+    console.log('🤖 Generating enhanced SOAP with PlumbRAG...');
+    console.log('📝 Transcript length:', transcript.length);
+    console.log('📚 Previous notes count:', previousNotes ? previousNotes.length : 0);
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt
-        },
-        {
-          role: 'user',
-          content: userPrompt
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 4000
-    });
+    // Use our enhanced SOAP generation with PlumbRAG
+    const soapNote = await generateEnhancedSOAP(transcript, previousNotes || []);
 
-    const response = completion.choices[0]?.message?.content;
-    console.log('📋 Raw OpenAI response:', response);
-    
-    if (!response) {
-      throw new Error('No response from OpenAI');
-    }
-
-    // Clean the response to extract JSON from markdown code blocks
-    let cleanedResponse = response.trim();
-    
-    // Remove markdown code block markers
-    if (cleanedResponse.startsWith('```json')) {
-      cleanedResponse = cleanedResponse.replace(/^```json\s*/, '');
-    }
-    if (cleanedResponse.startsWith('```')) {
-      cleanedResponse = cleanedResponse.replace(/^```\s*/, '');
-    }
-    if (cleanedResponse.endsWith('```')) {
-      cleanedResponse = cleanedResponse.replace(/\s*```$/, '');
-    }
-    
-    console.log('🧹 Cleaned response:', cleanedResponse);
-
-    // Try to parse as JSON
-    let soapNote;
-    try {
-      soapNote = JSON.parse(cleanedResponse);
-      console.log('✅ Successfully parsed JSON response');
-    } catch (parseError) {
-      console.log('⚠️ JSON parse failed, trying text parsing...');
-      console.log('Parse error:', parseError.message);
-      
-      // Fallback: parse the text response
-      soapNote = parseSOAPFromText(cleanedResponse);
-      console.log('📝 Text parsing result:', soapNote);
-    }
-
-    console.log('🎯 Final SOAP note:', soapNote);
+    console.log('🎯 Final enhanced SOAP note:', soapNote);
     res.json({ soapNote });
   } catch (error) {
-    console.error('SOAP generation error:', error);
+    console.error('Enhanced SOAP generation error:', error);
     res.status(500).json({ 
-      error: 'Failed to generate SOAP notes',
+      error: 'Failed to generate enhanced SOAP notes',
       message: error.message 
     });
   }
@@ -229,6 +181,13 @@ app.use((error, req, res, next) => {
   }
   
   res.status(500).json({ error: error.message });
+});
+
+// Initialize PlumbRAG on server start
+initializePlumbRAG().then(() => {
+  console.log('✅ PlumbRAG system ready');
+}).catch((error) => {
+  console.log('⚠️ PlumbRAG initialization failed, continuing without it:', error.message);
 });
 
 app.listen(PORT, () => {

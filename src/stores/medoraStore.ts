@@ -94,6 +94,7 @@ export const useMedoraStore = create<MedoraState>((set, get) => ({
       }
     });
   },
+
   
   setSOAPNote: (soapNote) => set({ soapNote }),
   

@@ -6,16 +6,15 @@ import { Label } from "@/components/ui/label"
 import { Upload, FileAudio, Loader2, CheckCircle, AlertCircle } from "lucide-react"
 import { useMedoraStore } from "@/stores/medoraStore"
 import { useToast } from "@/hooks/use-toast"
-import { transcribeAudio, checkServerHealth, generateSoapNote, SoapNote } from "@/lib/api"
+import { transcribeAudio, checkServerHealth } from "@/lib/api"
 
 export const AudioUpload = () => {
   const [isUploading, setIsUploading] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
-  const [isGeneratingSoap, setIsGeneratingSoap] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking')
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { addTranscriptChunk, clearTranscript, setCurrentPatient, currentPatient, setSOAPNote } = useMedoraStore()
+  const { addTranscriptChunk, clearTranscript, setCurrentPatient, currentPatient } = useMedoraStore()
   const { toast } = useToast()
 
   // Check server health on component mount
@@ -95,50 +94,8 @@ export const AudioUpload = () => {
         description: `Successfully transcribed audio (${result.language}, ${result.duration?.toFixed(1)}s)`,
       })
 
-      // Step 2: Generate SOAP note via backend API
-      if (result.text && result.text.trim().length > 0) {
-        console.log('🤖 Generating SOAP note via backend API...');
-        setIsGeneratingSoap(true);
-        
-        toast({
-          title: "Generating SOAP Note",
-          description: "Creating structured SOAP notes with patient history...",
-        });
-
-        try {
-          // Get previous SOAP notes for this patient (mock data for now)
-          const previousNotes: SoapNote[] = getPreviousSoapNotes(currentPatient?.id || 'demo-patient');
-          
-          const soapNote = await generateSoapNote(result.text, previousNotes);
-          console.log('✅ SOAP note with history generated:', soapNote);
-          
-          // Store the SOAP note in the application state
-          console.log('💾 Storing SOAP note in application state...');
-          setSOAPNote(soapNote);
-          console.log('✅ SOAP note stored in application state');
-          
-          console.log('📝 Generated SOAP Note with History:');
-          console.log('Subjective:', soapNote.subjective);
-          console.log('Objective:', soapNote.objective);
-          console.log('Assessment:', soapNote.assessment);
-          console.log('Plan:', soapNote.plan);
-
-          toast({
-            title: "SOAP Note Generated",
-            description: "Successfully created structured SOAP notes with patient history.",
-          });
-
-        } catch (soapError) {
-          console.error('❌ Error generating SOAP note:', soapError);
-          toast({
-            title: "SOAP Generation Failed",
-            description: "Transcription successful, but SOAP note generation failed.",
-            variant: "destructive"
-          });
-        } finally {
-          setIsGeneratingSoap(false);
-        }
-      }
+      // SOAP generation is now handled manually via the "Generate SOAP" button
+      console.log('✅ Transcription completed. Use "Generate SOAP" button to create SOAP notes.');
 
     } catch (error) {
       console.error('Transcription error:', error)
@@ -152,31 +109,6 @@ export const AudioUpload = () => {
     }
   }
 
-  // Mock function to get previous SOAP notes for a patient
-  const getPreviousSoapNotes = (patientId: string): SoapNote[] => {
-    // In a real app, this would fetch from a database
-    // For now, return mock historical data
-    const mockHistory: Record<string, SoapNote[]> = {
-      'demo-patient': [
-        {
-          subjective: "Owner reports 2-week history of intermittent coughing, especially after exercise. Dog otherwise active and eating normally.",
-          objective: "Temp 101.5°F, HR 95 bpm, RR 28/min. Lungs clear on auscultation. No nasal discharge. Weight stable.",
-          assessment: "Mild upper respiratory irritation, possible environmental allergies",
-          plan: "Monitor symptoms, consider antihistamines if coughing persists. Return in 2 weeks if no improvement."
-        }
-      ],
-      'MRN508532597': [
-        {
-          subjective: "Initial visit - owner concerned about recent lethargy and decreased appetite over past 3 days.",
-          objective: "Temp 102.8°F, HR 110 bpm, RR 32/min. Slightly dehydrated. Abdomen soft, no masses palpated.",
-          assessment: "Possible gastrointestinal upset, rule out foreign body ingestion",
-          plan: "Withhold food for 12 hours, then bland diet. Monitor closely. Return if vomiting or lethargy worsens."
-        }
-      ]
-    };
-
-    return mockHistory[patientId] || [];
-  };
 
   const handleClear = () => {
     setUploadedFile(null)
@@ -247,18 +179,13 @@ export const AudioUpload = () => {
             <div className="flex gap-2">
               <Button
                 onClick={handleTranscribe}
-                disabled={!uploadedFile || isTranscribing || isGeneratingSoap}
+                disabled={!uploadedFile || isTranscribing}
                 className="flex-1"
               >
                 {isTranscribing ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Transcribing...
-                  </>
-                ) : isGeneratingSoap ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Generating SOAP...
                   </>
                 ) : (
                   <>
@@ -272,7 +199,7 @@ export const AudioUpload = () => {
                 <Button
                   variant="outline"
                   onClick={handleClear}
-                  disabled={isTranscribing || isGeneratingSoap}
+                  disabled={isTranscribing}
                 >
                   Clear
                 </Button>
@@ -280,20 +207,12 @@ export const AudioUpload = () => {
             </div>
 
             {/* Status indicators */}
-            {(isTranscribing || isGeneratingSoap) && (
+            {isTranscribing && (
               <div className="space-y-2">
-                {isTranscribing && (
-                  <div className="flex items-center gap-2 text-blue-600">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm font-medium">Transcribing audio with Whisper AI...</span>
-                  </div>
-                )}
-                {isGeneratingSoap && (
-                  <div className="flex items-center gap-2 text-purple-600">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm font-medium">Generating SOAP note...</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 text-blue-600">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm font-medium">Transcribing audio with Whisper AI...</span>
+                </div>
               </div>
             )}
           </div>

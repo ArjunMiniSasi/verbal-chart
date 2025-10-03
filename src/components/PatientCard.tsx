@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { 
@@ -11,23 +10,7 @@ import {
   Mail
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
-
-interface Patient {
-  id: string
-  name: string
-  age: number
-  gender: string
-  patientId: string
-  lastVisit: string
-  phone?: string
-  email?: string
-  status: 'active' | 'inactive' | 'pending'
-  appointmentStatus?: 'pending' | 'done'
-  appointmentTime?: string
-  priority?: 'high' | 'medium' | 'normal'
-  lastSOAP?: string
-  pendingCases?: number
-}
+import { Patient } from "@/mocks/seeds"
 
 interface PatientCardProps {
   patient: Patient
@@ -65,87 +48,81 @@ export const PatientCard = ({ patient, variant = 'default' }: PatientCardProps) 
   }
 
   const handleViewPatient = () => {
-    navigate(`/patient/${patient.patientId}`)
+    navigate(`/patient/${patient.mrn}`)
   }
 
   if (variant === 'compact') {
     return (
-      <Card 
-        className="hover:shadow-md transition-shadow cursor-pointer"
+      <div 
+        className="p-4 border rounded bg-white hover:shadow-md transition-shadow cursor-pointer"
         onClick={handleViewPatient}
       >
-        <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 bg-medical-primary/10 rounded-full flex items-center justify-center">
                 <User className="h-5 w-5 text-medical-primary" />
               </div>
               <div>
-                <h3 className="font-medium">{patient.name}</h3>
+                <h3 className="font-medium">{patient.pet.name}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {patient.patientId} • {patient.age}y • {patient.gender}
+                  {patient.mrn} • {patient.pet.age}y • {patient.pet.gender}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge className={getStatusColor(patient.status)}>
-                {patient.status}
+              <Badge className="bg-green-100 text-green-800">
+                Active
               </Badge>
               <Button variant="ghost" size="sm">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
     )
   }
 
   if (variant === 'detailed') {
     return (
-      <Card className="hover:shadow-md transition-shadow">
-        <CardHeader className="pb-3">
+      <div className="p-4 border rounded bg-white hover:shadow-md transition-shadow">
+        <div className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 bg-medical-primary/10 rounded-full flex items-center justify-center">
                 <User className="h-6 w-6 text-medical-primary" />
               </div>
               <div>
-                <CardTitle className="text-lg">{patient.name}</CardTitle>
+                <h3 className="text-lg font-semibold">{patient.pet.name}</h3>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>{patient.patientId}</span>
+                  <span>{patient.mrn}</span>
                   <span>•</span>
-                  <span>{patient.age} years old</span>
+                  <span>{patient.pet.age} years old</span>
                   <span>•</span>
-                  <span className="capitalize">{patient.gender}</span>
+                  <span className="capitalize">{patient.pet.gender}</span>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge className={getStatusColor(patient.status)}>
-                {patient.status}
+              <Badge className="bg-green-100 text-green-800">
+                Active
               </Badge>
               <Button variant="ghost" size="sm">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </div>
+        <div className="space-y-4">
           {/* Contact Info */}
           <div className="space-y-2">
-            {patient.phone && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Phone className="h-4 w-4" />
-                <span>{patient.phone}</span>
-              </div>
-            )}
-            {patient.email && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Mail className="h-4 w-4" />
-                <span>{patient.email}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Phone className="h-4 w-4" />
+              <span>{patient.owner.phone}</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Mail className="h-4 w-4" />
+              <span>{patient.owner.email}</span>
+            </div>
           </div>
 
           {/* Last Visit */}
@@ -187,62 +164,49 @@ export const PatientCard = ({ patient, variant = 'default' }: PatientCardProps) 
               <FileText className="h-4 w-4" />
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   // Default variant
   return (
-    <Card 
-      className="hover:shadow-md transition-shadow cursor-pointer"
+    <div 
+      className="p-4 border rounded bg-white hover:shadow-md transition-shadow cursor-pointer"
       onClick={handleViewPatient}
     >
-      <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 bg-medical-primary/10 rounded-full flex items-center justify-center">
               <User className="h-5 w-5 text-medical-primary" />
             </div>
             <div>
-              <h3 className="font-medium">{patient.name}</h3>
+              <h3 className="font-medium">{patient.pet.name}</h3>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>{patient.patientId}</span>
+                <span>{patient.mrn}</span>
                 <span>•</span>
-                <span>{patient.age}y</span>
+                <span>{patient.pet.age}y</span>
                 <span>•</span>
-                <span className="capitalize">{patient.gender}</span>
+                <span className="capitalize">{patient.pet.gender}</span>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {patient.priority && (
-              <Badge className={getPriorityColor(patient.priority)}>
-                {patient.priority}
-              </Badge>
-            )}
-            {patient.pendingCases && patient.pendingCases > 0 && (
-              <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-                {patient.pendingCases}
-              </Badge>
-            )}
+            <Badge className="bg-green-100 text-green-800">
+              Active
+            </Badge>
           </div>
         </div>
         <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground">
-          {patient.appointmentTime && (
-            <div className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
-              <span>{patient.appointmentTime}</span>
-            </div>
-          )}
-          {patient.lastSOAP && (
-            <div className="flex items-center gap-1">
-              <FileText className="h-4 w-4" />
-              <span className="line-clamp-1">{patient.lastSOAP}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1">
+            <Clock className="h-4 w-4" />
+            <span>Last visit: {patient.lastVisit}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <FileText className="h-4 w-4" />
+            <span className="line-clamp-1">Owner: {patient.owner.name}</span>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+    </div>
   )
 }

@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { searchPlumb, initializePlumbRAG } from './plumbRAG';
 
 // Define the SOAP note structure
 export interface SoapNote {
@@ -130,17 +131,17 @@ function extractSoapFromText(text: string): SoapNote | null {
 }
 
 /**
- * Creates a SOAP note with historical context from previous notes
+ * Creates a SOAP note with historical context from previous notes and PlumbRAG integration
  * @param transcript - The raw transcript from Whisper AI
  * @param previousNotes - Array of prior SOAP notes for this patient
- * @returns Promise<SoapNote> - New SOAP note with historical context
+ * @returns Promise<SoapNote> - New SOAP note with historical context and PlumbRAG-enhanced Plan
  */
 export async function createSoapNoteWithHistory(
   transcript: string, 
   previousNotes: SoapNote[]
 ): Promise<SoapNote> {
   try {
-    console.log('🤖 Creating SOAP note with historical context...');
+    console.log('🤖 Creating SOAP note with historical context and PlumbRAG...');
     console.log('📝 Transcript length:', transcript.length);
     console.log('📚 Previous notes count:', previousNotes.length);
     
@@ -155,6 +156,7 @@ export async function createSoapNoteWithHistory(
         ).join('\n---\n')
       : 'No previous medical history available.';
 
+    // First, generate S, O, A sections
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -196,17 +198,15 @@ Generate a new SOAP note that builds upon the historical context while focusing 
     console.log('🤖 Raw OpenAI response:', content);
 
     // Try to parse the JSON response
+    let soapNote: SoapNote;
     try {
-      const soapNote = JSON.parse(content) as SoapNote;
+      soapNote = JSON.parse(content) as SoapNote;
       
       // Validate that all required fields are present
       if (!soapNote.subjective || !soapNote.objective || !soapNote.assessment || !soapNote.plan) {
         throw new Error('Invalid SOAP note structure - missing required fields');
       }
 
-      console.log('✅ SOAP note with history generated successfully');
-      return soapNote;
-      
     } catch (parseError) {
       console.error('❌ Failed to parse JSON response:', parseError);
       console.log('Raw content that failed to parse:', content);
@@ -214,12 +214,88 @@ Generate a new SOAP note that builds upon the historical context while focusing 
       // Try to extract SOAP sections using regex as fallback
       const fallbackSoap = extractSoapFromText(content);
       if (fallbackSoap) {
-        console.log('✅ Extracted SOAP note using fallback method');
-        return fallbackSoap;
+        soapNote = fallbackSoap;
+      } else {
+        throw new Error('Failed to parse SOAP note from OpenAI response');
+      }
+    }
+
+    // Now enhance the Plan section using PlumbRAG
+    try {
+      console.log('🔍 Enhancing Plan section with PlumbRAG...');
+      
+      // Initialize PlumbRAG if not already done
+      await initializePlumbRAG();
+      
+      // Build query based on assessment
+      const assessmentQuery = `Treatment options for ${soapNote.assessment}`;
+      console.log('🔍 PlumbRAG query:', assessmentQuery);
+      
+      // Search for relevant drug handbook context
+      const plumbContext = await searchPlumb(assessmentQuery, 3);
+      
+      if (plumbContext.length > 0) {
+        console.log(`📖 Retrieved ${plumbContext.length} relevant drug handbook entries`);
+        
+        // Generate enhanced Plan using PlumbRAG context
+        const planResponse = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `You are a veterinary AI scribe.
+Generate only the Plan section of a SOAP note.
+Base your response on:
+1. The current transcript
+2. The patient's medical history
+3. The following drug handbook context: ${plumbContext.join('\n\n')}
+
+Only suggest treatments found in the drug handbook context.
+Do not invent drugs or dosages.
+Be specific about dosages and administration when available in the context.
+Format as a clear, actionable treatment plan.`
+            },
+            {
+              role: "user",
+              content: `Generate a treatment plan based on:
+
+TRANSCRIPT:
+${transcript}
+
+MEDICAL HISTORY:
+${historyContext}
+
+ASSESSMENT:
+${soapNote.assessment}
+
+DRUG HANDBOOK CONTEXT:
+${plumbContext.join('\n\n')}
+
+Create a specific, actionable plan using only treatments mentioned in the drug handbook context.`
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 500,
+        });
+
+        const planContent = planResponse.choices[0]?.message?.content;
+        if (planContent) {
+          soapNote.plan = planContent.trim();
+          console.log('✅ Plan section enhanced with PlumbRAG context');
+        } else {
+          console.warn('⚠️ No response for enhanced plan, keeping original');
+        }
+      } else {
+        console.warn('⚠️ No PlumbRAG context found, keeping original plan');
       }
       
-      throw new Error('Failed to parse SOAP note from OpenAI response');
+    } catch (plumbError) {
+      console.error('❌ Error enhancing plan with PlumbRAG:', plumbError);
+      console.log('📝 Continuing with original plan due to PlumbRAG error');
     }
+
+    console.log('✅ SOAP note with history and PlumbRAG generated successfully');
+    return soapNote;
 
   } catch (error) {
     console.error('❌ Error creating SOAP note with history:', error);
@@ -289,6 +365,34 @@ export async function testSoapWithHistory() {
     return soapNote;
   } catch (error) {
     console.error('Test with history failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Test function for SOAP note with PlumbRAG integration
+ */
+export async function testSoapWithPlumbRAG() {
+  const sampleTranscript = `
+    New patient visit for Buddy, a 5-year-old Golden Retriever. Owner reports 
+    that Buddy has been scratching excessively for the past week, especially 
+    around the ears and belly. The skin appears red and inflamed in these areas. 
+    Owner also noticed some hair loss. No previous skin issues. 
+    On examination, temperature is 101.8°F, heart rate is 95 bpm. 
+    Skin examination reveals erythema and mild alopecia on the ventral abdomen 
+    and around the ears. No visible parasites. Ears are clean. 
+    Suspected allergic dermatitis or bacterial skin infection.
+  `;
+
+  const previousNotes: SoapNote[] = [];
+
+  try {
+    console.log('🧪 Testing SOAP generation with PlumbRAG integration...');
+    const soapNote = await createSoapNoteWithHistory(sampleTranscript, previousNotes);
+    console.log('✅ Generated SOAP Note with PlumbRAG:', soapNote);
+    return soapNote;
+  } catch (error) {
+    console.error('❌ Test with PlumbRAG failed:', error);
     return null;
   }
 }
