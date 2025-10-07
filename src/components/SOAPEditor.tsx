@@ -2,10 +2,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Eye, Download, Save, Loader2, Stethoscope, ClipboardList, Brain, Target, Pill, Calculator, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, Eye, Download, Save, Loader2, Stethoscope, ClipboardList, Brain, Target, Pill, Calculator, ChevronDown, ChevronUp, Edit3 } from "lucide-react";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { ManualSOAEditor } from "./ManualSOAEditor";
 
 // Use the same API base URL as other components
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -26,6 +27,7 @@ export const SOAPEditor = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [isPlanExpanded, setIsPlanExpanded] = useState(false);
+  const [isManualMode, setIsManualMode] = useState(false);
 
   const generateSOA = async () => {
     if (transcript.length === 0) {
@@ -47,106 +49,43 @@ export const SOAPEditor = () => {
     }
 
     setIsGenerating(true);
-
     try {
-      const transcriptText = transcript.map(chunk => chunk.text).join(' ');
-      
-      // Modified prompt to generate only SOA (Subjective, Objective, Assessment)
-      const systemPrompt = `You are a veterinary AI assistant. Generate SOAP notes in JSON format.
-
-Return ONLY a valid JSON object with these exact keys:
-{
-  "subjective": "string content here",
-  "objective": "string content here", 
-  "assessment": "string content here",
-  "plan": ""
-}
-
-Rules:
-- Use veterinary medical terminology
-- Be concise but complete for SOA sections
-- Leave the "plan" field empty as it will be generated separately
-- Return ONLY the JSON object, no other text
-- Ensure valid JSON syntax`;
-
-      const userPrompt = `Patient: ${currentPatient.pet.name} (${currentPatient.pet.species}, ${currentPatient.pet.breed})
-Age: ${currentPatient.pet.age} years, Weight: ${currentPatient.pet.weight} lbs, Gender: ${currentPatient.pet.gender}
-Owner: ${currentPatient.owner.name}
-
-Clinical Transcript:
-${transcriptText}
-
-Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consultation. Leave the plan section empty.`;
-
-      console.log('🌐 Calling SOAP API for SOA:', `${API_BASE_URL}/api/generate-soap`);
-
       const response = await fetch(`${API_BASE_URL}/api/generate-soap`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          transcript: transcriptText,
-          previousNotes: []
+          transcript: transcript,
+          patientId: currentPatient.id,
+          previousNotes: [] // TODO: Get previous notes for this patient
         }),
       });
-
-      console.log('📡 SOAP Response status:', response.status, response.statusText);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('📋 SOAP Response data:', data);
-      console.log('📋 Response status:', response.status);
-      console.log('📋 Response headers:', response.headers);
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
+      console.log('📝 Generated SOAP data:', data);
 
-      // Handle the response - data.soapNote should already be an object
-      let soapData;
-      if (typeof data.soapNote === 'string') {
-        // If it's a string, try to parse it
-        try {
-          soapData = JSON.parse(data.soapNote);
-        } catch (parseError) {
-          console.error('JSON parse error:', parseError);
-          // If parsing fails, try to extract JSON from the response
-          const jsonMatch = data.soapNote.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            soapData = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error('Invalid JSON response from API');
-          }
-        }
-      } else if (typeof data.soapNote === 'object' && data.soapNote !== null) {
-        // Use object response directly
-        soapData = data.soapNote;
-      } else {
-        throw new Error('Unexpected response format from API');
-      }
-
-      console.log('📝 Parsed SOAP data:', soapData);
-
-      // Update only SOA sections, leave plan empty
+      // Update the SOAP note with the generated data
+      // The backend returns { soapNote: { subjective, objective, assessment, plan } }
+      const soapData = data.soapNote || data;
       updateSOAPNote('subjective', soapData.subjective || '');
       updateSOAPNote('objective', soapData.objective || '');
       updateSOAPNote('assessment', soapData.assessment || '');
-      // Don't update plan - it will be generated separately
+      updateSOAPNote('plan', soapData.plan || '');
 
       toast({
-        title: "SOA Generated Successfully",
-        description: "AI-generated SOA notes from transcript. Plan will be generated separately.",
+        title: "SOAP note generated successfully",
+        description: "The SOAP note has been generated from the transcript.",
       });
-
     } catch (error) {
-      console.error('SOA generation error:', error);
+      console.error('Error generating SOAP note:', error);
       toast({
-        title: "SOA Generation Failed",
-        description: error instanceof Error ? error.message : "Failed to generate SOA notes. Please try again.",
+        title: "Error generating SOAP note",
+        description: "Please try again or check your connection.",
         variant: "destructive"
       });
     } finally {
@@ -155,92 +94,50 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
   };
 
   const generatePlan = async () => {
-    console.log('🚀 Generate Plan button clicked!');
-    console.log('🚀 Current soapNote.assessment:', soapNote.assessment);
-    
-    if (!soapNote.assessment) {
+    if (!soapNote.subjective || !soapNote.objective || !soapNote.assessment || 
+        soapNote.subjective.trim().length === 0 || soapNote.objective.trim().length === 0 || soapNote.assessment.trim().length === 0) {
       toast({
-        title: "Assessment required",
-        description: "Please generate SOA notes first before creating a treatment plan.",
+        title: "SOA sections required",
+        description: "Please complete all SOA sections (Subjective, Objective, Assessment) first.",
         variant: "destructive"
       });
       return;
     }
 
-    // Expand the plan section when generate plan is clicked
-    setIsPlanExpanded(true);
     setIsGeneratingPlan(true);
-    console.log('🚀 Starting plan generation...');
-
     try {
-      const transcriptText = transcript.map(chunk => chunk.text).join(' ');
-      console.log('🚀 Transcript text:', transcriptText);
-      console.log('🚀 API URL:', `${API_BASE_URL}/api/generate-soap`);
-      
-      // Call the backend API to generate enhanced SOAP with PlumbRAG
-      const response = await fetch(`${API_BASE_URL}/api/generate-soap`, {
+      const response = await fetch(`${API_BASE_URL}/api/generate-plan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          transcript: transcriptText,
-          previousNotes: []
+          subjective: soapNote.subjective,
+          objective: soapNote.objective,
+          assessment: soapNote.assessment,
+          previousNotes: [] // TODO: Get previous notes for this patient
         }),
       });
-      
-      console.log('🚀 API Response received:', response);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('📋 Enhanced SOAP Response data:', data);
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
+      console.log('📋 Generated plan data:', data);
 
-      // Handle the response - data.soapNote should already be an object
-      let soapData;
-      if (typeof data.soapNote === 'string') {
-        // If it's a string, try to parse it
-        try {
-          soapData = JSON.parse(data.soapNote);
-        } catch (parseError) {
-          console.error('JSON parse error:', parseError);
-          // If parsing fails, try to extract JSON from the response
-          const jsonMatch = data.soapNote.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            soapData = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error('Invalid response format');
-          }
-        }
-      } else {
-        soapData = data.soapNote;
-      }
+      // Update the plan section
+      updateSOAPNote('plan', data.plan || '');
 
-      // Update the SOAP note with the enhanced plan
-      if (soapData.plan) {
-        console.log('🔍 Received plan data:', soapData.plan);
-        updateSOAPNote('plan', soapData.plan);
-        
-        toast({
-          title: "Plan Generated Successfully",
-          description: "Treatment plan has been generated with PlumbRAG drug recommendations.",
-          variant: "default"
-        });
-      } else {
-        throw new Error('No plan data received');
-      }
-
-    } catch (error) {
-      console.error('Plan generation error:', error);
       toast({
-        title: "Plan Generation Failed",
-        description: error instanceof Error ? error.message : "Failed to generate treatment plan. Please try again.",
+        title: "Treatment plan generated successfully",
+        description: "The treatment plan has been generated using PlumbRAG.",
+      });
+    } catch (error) {
+      console.error('Error generating plan:', error);
+      toast({
+        title: "Error generating plan",
+        description: "Please try again or check your connection.",
         variant: "destructive"
       });
     } finally {
@@ -248,136 +145,135 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
     }
   };
 
-  const wordCount = (text: string) => {
-    return text.trim() ? text.trim().split(/\s+/).length : 0;
+  const exportSOAP = () => {
+    const soapContent = `
+SOAP Note - ${currentPatient?.name || 'Unknown Patient'}
+Generated: ${new Date().toLocaleString()}
+
+SUBJECTIVE:
+${soapNote.subjective}
+
+OBJECTIVE:
+${soapNote.objective}
+
+ASSESSMENT:
+${soapNote.assessment}
+
+PLAN:
+${soapNote.plan}
+    `.trim();
+
+    const blob = new Blob([soapContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `SOAP_${currentPatient?.name || 'Patient'}_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "SOAP note exported",
+      description: "The SOAP note has been downloaded as a text file.",
+    });
   };
 
-  // Parse plan into individual sections
+  const wordCount = (text: string) => {
+    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+  };
+
   const parsePlanSections = (planText: string) => {
+    if (!planText) return [];
+    
     console.log('🔍 Parsing plan text:', planText);
+    
     const sections = [];
     const lines = planText.split('\n');
-    let currentSection = null;
-    let currentContent = [];
-
+    let currentSection = { title: '', content: '' };
+    
     for (const line of lines) {
       const trimmedLine = line.trim();
+      console.log('🔍 Processing line:', trimmedLine);
       
-      // Check if this is a section header (starts with number and **) - updated regex to handle content on same line
-      const sectionMatch = trimmedLine.match(/^\d+\.\s*\*\*([^*]+)\*\*:?\s*(.*)$/);
-      
-      if (sectionMatch) {
-        // Save previous section if exists
-        if (currentSection) {
-          sections.push({
-            title: currentSection,
-            content: currentContent.join('\n').trim()
-          });
+      // Match format: "1. **Diagnostics:**" or "1. **Medications:**" etc.
+      if (trimmedLine.match(/^\d+\.\s*\*\*.*\*\*:?\s*$/)) {
+        if (currentSection.title) {
+          sections.push(currentSection);
         }
-        
-        // Start new section
-        currentSection = sectionMatch[1];
-        const sectionContent = sectionMatch[2].trim();
-        currentContent = sectionContent ? [sectionContent] : [];
-        console.log('📝 Found section:', currentSection, 'with content:', sectionContent);
-      } else if (trimmedLine && currentSection) {
-        // Add content to current section (remove leading dashes and clean up)
-        const cleanLine = trimmedLine.replace(/^-\s*/, '').trim();
-        if (cleanLine) {
-          currentContent.push(cleanLine);
-        }
+        currentSection = {
+          title: trimmedLine.replace(/^\d+\.\s*\*\*(.*)\*\*:?\s*$/, '$1').trim(),
+          content: ''
+        };
+        console.log('🔍 Found section:', currentSection.title);
+      } else if (trimmedLine && currentSection.title) {
+        currentSection.content += (currentSection.content ? '\n' : '') + trimmedLine;
       }
     }
     
-    // Don't forget the last section
-    if (currentSection) {
-      sections.push({
-        title: currentSection,
-        content: currentContent.join('\n').trim()
-      });
+    if (currentSection.title) {
+      sections.push(currentSection);
     }
-
-    console.log('📋 Parsed sections:', sections);
+    
+    console.log('🔍 Parsed sections:', sections);
     return sections;
   };
 
-  // Get appropriate icon for each section
   const getSectionIcon = (title: string) => {
-    const lowerTitle = title.toLowerCase();
-    if (lowerTitle.includes('diagnostic')) {
-      return <ClipboardList className="h-4 w-4 text-white" />;
-    } else if (lowerTitle.includes('medication')) {
-      return <Pill className="h-4 w-4 text-white" />;
-    } else if (lowerTitle.includes('follow')) {
-      return <Target className="h-4 w-4 text-white" />;
-    } else if (lowerTitle.includes('education') || lowerTitle.includes('client') || lowerTitle.includes('owner')) {
-      return <FileText className="h-4 w-4 text-white" />;
-    } else if (lowerTitle.includes('environmental')) {
-      return <Calculator className="h-4 w-4 text-white" />;
-    } else {
-      return <Target className="h-4 w-4 text-white" />;
+    switch (title.toLowerCase()) {
+      case 'diagnostics':
+        return <ClipboardList className="h-4 w-4 text-white" />;
+      case 'medications':
+        return <Pill className="h-4 w-4 text-white" />;
+      case 'follow-up':
+        return <Target className="h-4 w-4 text-white" />;
+      default:
+        return <Target className="h-4 w-4 text-white" />;
     }
   };
 
-  // Update individual plan section
-  const updatePlanSection = (sectionIndex: number, newContent: string) => {
-    const sections = parsePlanSections(soapNote.plan);
-    if (sections[sectionIndex]) {
-      sections[sectionIndex].content = newContent;
-      
-      // Reconstruct the full plan
-      const reconstructedPlan = sections.map((section, index) => {
-        const contentLines = section.content.split('\n').map(line => 
-          line.trim() ? `   - ${line.trim()}` : ''
-        ).filter(line => line).join('\n');
-        
-        return `${index + 1}. **${section.title}:**\n${contentLines}`;
-      }).join('\n\n');
-      
-      updateSOAPNote('plan', `**Plan:**\n\n${reconstructedPlan}`);
-    }
-  };
-
-
-  const totalWords = Object.values(soapNote).reduce((total, section) => 
-    total + wordCount(section), 0
-  );
+  const totalWords = wordCount(soapNote.subjective) + wordCount(soapNote.objective) + wordCount(soapNote.assessment) + wordCount(soapNote.plan);
 
   return (
-    <Card className="h-full">
-      <CardHeader className="pb-4">
+    <Card className="w-full max-w-4xl mx-auto">
+      <CardHeader>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <CardTitle className="flex items-center gap-2">
             <FileText className="h-6 w-6 text-blue-600" />
-            <CardTitle className="text-xl font-bold text-gray-900">SOAP Editor</CardTitle>
-            {totalWords > 0 && (
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                {totalWords} words total
-              </Badge>
-            )}
+            SOAP Note Editor
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              {totalWords} words total
+            </Badge>
           </div>
           <div className="flex gap-2">
             <Button 
               variant="outline" 
-              size="sm" 
-              onClick={generateSOA}
-              disabled={transcript.length === 0 || isGenerating}
-              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+              onClick={() => setIsManualMode(!isManualMode)}
+              className="gap-2"
             >
-              {isGenerating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              {isGenerating ? 'Generating SOA...' : 'Generate SOA'}
+              <Edit3 className="h-4 w-4" />
+              {isManualMode ? 'Auto Mode' : 'Manual Mode'}
             </Button>
+            {!isManualMode && (
+              <Button 
+                variant="outline" 
+                onClick={generateSOA}
+                disabled={transcript.length === 0 || isGenerating}
+                className="gap-2"
+              >
+                {isGenerating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {isGenerating ? 'Generating SOA...' : 'Generate SOA'}
+              </Button>
+            )}
             <Button 
               variant="outline" 
-              size="sm" 
-              onClick={() => {
-                console.log('🚀 BUTTON CLICKED!');
-                generatePlan();
-              }}
+              onClick={generatePlan}
               disabled={!soapNote.assessment || isGeneratingPlan}
               className="gap-2 bg-green-600 hover:bg-green-700 text-white border-green-600"
             >
@@ -390,21 +286,30 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
             </Button>
             <Button 
               variant="outline" 
-              size="sm" 
               onClick={() => setShowPreview(true)}
-              disabled={totalWords === 0}
-              className="gap-2 border-gray-300 hover:bg-gray-50"
+              className="gap-2"
             >
               <Eye className="h-4 w-4" />
               Preview
             </Button>
+            <Button 
+              variant="outline" 
+              onClick={exportSOAP}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
           </div>
         </div>
       </CardHeader>
-
       <CardContent className="space-y-6">
-        {/* Medical Record Section - Timeline Style */}
-        <div className="space-y-4">
+        {isManualMode ? (
+          <ManualSOAEditor />
+        ) : (
+          <>
+            {/* Medical Record Section - Timeline Style */}
+            <div className="space-y-4">
           <div className="flex items-center gap-3 pb-2 border-b-2 border-blue-200">
             <Stethoscope className="h-6 w-6 text-blue-600" />
             <h2 className="text-xl font-bold text-gray-900">Medical Record</h2>
@@ -435,10 +340,10 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
                   </div>
                   <div className="bg-white p-3 rounded border border-gray-200">
                     <Textarea
-                      placeholder="Patient's subjective symptoms, history, and owner observations..."
+                      placeholder="Patient history, symptoms, and owner concerns..."
                       value={soapNote.subjective}
                       onChange={(e) => updateSOAPNote('subjective', e.target.value)}
-                      className="min-h-[60px] resize-none border-0 focus:ring-0 p-0 text-sm"
+                      className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm"
                     />
                   </div>
                 </div>
@@ -460,17 +365,17 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
                   </div>
                   <div className="bg-white p-3 rounded border border-gray-200">
                     <Textarea
-                      placeholder="Objective findings, vital signs, physical examination results..."
+                      placeholder="Physical examination findings, vital signs, and test results..."
                       value={soapNote.objective}
                       onChange={(e) => updateSOAPNote('objective', e.target.value)}
-                      className="min-h-[60px] resize-none border-0 focus:ring-0 p-0 text-sm"
+                      className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Assessment */}
-              <div className="relative flex items-start">
+              <div className="relative flex items-start mb-6">
                 <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center z-10">
                   <Brain className="h-4 w-4 text-white" />
                 </div>
@@ -528,12 +433,9 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
                         )}
                       </div>
                       <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <Textarea
-                          placeholder={`Enter ${section.title.toLowerCase()} details...`}
-                          value={section.content}
-                          onChange={(e) => updatePlanSection(index, e.target.value)}
-                          className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm"
-                        />
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                          {section.content}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -570,6 +472,8 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
             )}
           </div>
         </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

@@ -113,8 +113,8 @@ app.post('/api/generate-soap', async (req, res) => {
     console.log('📝 Transcript length:', transcript.length);
     console.log('📚 Previous notes count:', previousNotes ? previousNotes.length : 0);
 
-    // Use our enhanced SOAP generation with PlumbRAG
-    const soapNote = await generateEnhancedSOAP(transcript, previousNotes || []);
+    // Use our enhanced SOAP generation with PlumbRAG (SOA only, no plan)
+    const soapNote = await generateEnhancedSOAP(transcript, previousNotes || [], false);
 
     console.log('🎯 Final enhanced SOAP note:', soapNote);
     res.json({ soapNote });
@@ -122,6 +122,98 @@ app.post('/api/generate-soap', async (req, res) => {
     console.error('Enhanced SOAP generation error:', error);
     res.status(500).json({ 
       error: 'Failed to generate enhanced SOAP notes',
+      message: error.message 
+    });
+  }
+});
+
+// Generate Plan from Manual SOA endpoint
+app.post('/api/generate-plan-from-soa', async (req, res) => {
+  try {
+    const { subjective, objective, assessment, previousNotes } = req.body;
+
+    if (!subjective || !objective || !assessment) {
+      return res.status(400).json({ 
+        error: 'Subjective, Objective, and Assessment are all required' 
+      });
+    }
+
+    console.log('🎯 Generating plan from manual SOA...');
+    console.log('📝 Subjective length:', subjective.length);
+    console.log('📝 Objective length:', objective.length);
+    console.log('📝 Assessment length:', assessment.length);
+    console.log('📚 Previous notes count:', previousNotes ? previousNotes.length : 0);
+
+    // Create a combined transcript from the SOA sections
+    const combinedTranscript = `Subjective: ${subjective}\n\nObjective: ${objective}\n\nAssessment: ${assessment}`;
+    
+    // Use our enhanced SOAP generation with PlumbRAG, but only generate the plan
+    const soapNote = await generateEnhancedSOAP(combinedTranscript, previousNotes || [], true);
+    
+    // Return only the plan section
+    const response = {
+      plan: soapNote.plan,
+      petInfo: {
+        species: 'unknown',
+        breed: 'unknown', 
+        age: 'unknown',
+        weight: 'unknown',
+        sex: 'unknown'
+      }
+    };
+
+    console.log('🎯 Generated plan from manual SOA:', response.plan);
+    res.json(response);
+  } catch (error) {
+    console.error('Plan generation from SOA error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate plan from SOA',
+      message: error.message 
+    });
+  }
+});
+
+// Generate Plan from existing SOA endpoint (for auto mode)
+app.post('/api/generate-plan', async (req, res) => {
+  try {
+    const { subjective, objective, assessment, previousNotes } = req.body;
+
+    if (!subjective || !objective || !assessment) {
+      return res.status(400).json({ 
+        error: 'Subjective, Objective, and Assessment are all required' 
+      });
+    }
+
+    console.log('🎯 Generating plan from existing SOA...');
+    console.log('📝 Subjective length:', subjective.length);
+    console.log('📝 Objective length:', objective.length);
+    console.log('📝 Assessment length:', assessment.length);
+    console.log('📚 Previous notes count:', previousNotes ? previousNotes.length : 0);
+
+    // Create a combined transcript from the SOA sections
+    const combinedTranscript = `Subjective: ${subjective}\n\nObjective: ${objective}\n\nAssessment: ${assessment}`;
+    
+    // Use our enhanced SOAP generation with PlumbRAG, but only generate the plan
+    const soapNote = await generateEnhancedSOAP(combinedTranscript, previousNotes || [], true);
+    
+    // Return only the plan section
+    const response = {
+      plan: soapNote.plan,
+      petInfo: {
+        species: 'unknown',
+        breed: 'unknown', 
+        age: 'unknown',
+        weight: 'unknown',
+        sex: 'unknown'
+      }
+    };
+
+    console.log('🎯 Generated plan from existing SOA:', response.plan);
+    res.json(response);
+  } catch (error) {
+    console.error('Plan generation from existing SOA error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate plan from existing SOA',
       message: error.message 
     });
   }
