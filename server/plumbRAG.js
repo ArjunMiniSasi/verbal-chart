@@ -16,7 +16,7 @@ let plumbData = null;
 async function extractPetInfo(transcript) {
   try {
     console.log('🐕 Extracting pet information from transcript...');
-    
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -61,7 +61,7 @@ async function extractPetInfo(transcript) {
       if (cleanedResponse.endsWith('```')) {
         cleanedResponse = cleanedResponse.replace(/\s*```$/, '');
       }
-      
+
       petInfo = JSON.parse(cleanedResponse);
       console.log('🐕 Extracted pet info:', petInfo);
     } catch (parseError) {
@@ -82,32 +82,32 @@ async function extractPetInfo(transcript) {
 async function initializePlumbRAG() {
   try {
     console.log('🔧 Initializing PlumbRAG system...');
-    
+
     // Load the preprocessed embeddings from the parent directory
     const embeddingsPath = path.join(__dirname, '..', 'data', 'plumb_embeddings.json');
-    
+
     if (!fs.existsSync(embeddingsPath)) {
       console.log('⚠️ Plumb embeddings file not found, skipping PlumbRAG initialization');
       return;
     }
-    
+
     // Add timeout and error handling for large file reading
     const fileContent = fs.readFileSync(embeddingsPath, 'utf8');
     if (!fileContent || fileContent.trim().length === 0) {
       console.log('⚠️ Plumb embeddings file is empty, skipping PlumbRAG initialization');
       return;
     }
-    
+
     plumbData = JSON.parse(fileContent);
-    
+
     if (!plumbData || !plumbData.chunks || !Array.isArray(plumbData.chunks)) {
       console.log('⚠️ Invalid Plumb embeddings data structure, skipping PlumbRAG initialization');
       return;
     }
-    
+
     console.log(`📚 Loaded ${plumbData.chunks.length} chunks from plumb embeddings`);
     console.log('✅ PlumbRAG system initialized successfully');
-    
+
   } catch (error) {
     console.error('❌ Error initializing PlumbRAG system:', error.message);
     console.log('⚠️ Continuing without PlumbRAG - plan generation will use basic templates');
@@ -124,92 +124,92 @@ async function initializePlumbRAG() {
 async function searchPlumb(query, k = 3) {
   try {
     console.log(`🔍 Searching Plumb for: "${query}" (k=${k})`);
-    
+
     if (!plumbData) {
       console.warn('⚠️ PlumbRAG not initialized, initializing now...');
       await initializePlumbRAG();
     }
-    
+
     if (!plumbData || !plumbData.chunks) {
       console.warn('⚠️ PlumbRAG still not available, returning empty results');
       return [];
     }
-    
+
     // Enhanced keyword-based search with drug-specific prioritization
     const queryWords = query.toLowerCase().split(/\s+/);
     const scoredChunks = plumbData.chunks.map((chunk, index) => {
       const chunkLower = chunk.toLowerCase();
       let score = 0;
-      
+
       // Extract potential drug names from query
-      const drugNames = queryWords.filter(word => 
-        word.length > 3 && 
+      const drugNames = queryWords.filter(word =>
+        word.length > 3 &&
         !['treatment', 'options', 'for', 'bronchitis', 'pneumonia', 'infection', 'respiratory'].includes(word)
       );
-      
+
       // Higher score for drug name matches
       drugNames.forEach(drug => {
         if (chunkLower.includes(drug)) {
           score += 5; // Higher weight for drug name matches
         }
       });
-      
+
       // Score based on other keyword matches
       queryWords.forEach(word => {
         if (chunkLower.includes(word)) {
           score += 1;
         }
       });
-      
+
       // Bonus points for dosage information
       if (chunkLower.includes('mg/kg') || chunkLower.includes('dosage') || chunkLower.includes('doses')) {
         score += 3;
       }
-      
+
       // Bonus points for specific drug sections
       if (chunkLower.includes('doses dogs') || chunkLower.includes('doses cats') || chunkLower.includes('doses dogs/cats')) {
         score += 4;
       }
-      
+
       // Bonus points for weight-specific information
       if (chunkLower.includes('kg') || chunkLower.includes('weight') || chunkLower.includes('body weight')) {
         score += 2;
       }
-      
+
       // Bonus points for age-specific information
       if (chunkLower.includes('puppy') || chunkLower.includes('kitten') || chunkLower.includes('adult') || chunkLower.includes('senior') || chunkLower.includes('young') || chunkLower.includes('old')) {
         score += 2;
       }
-      
+
       // Bonus points for species-specific information
       if (chunkLower.includes('dog') || chunkLower.includes('cat') || chunkLower.includes('canine') || chunkLower.includes('feline')) {
         score += 1;
       }
-      
+
       // Bonus points for administration instructions
       if (chunkLower.includes('po') || chunkLower.includes('orally') || chunkLower.includes('subcutaneous') || chunkLower.includes('intramuscular')) {
         score += 2;
       }
-      
+
       return { chunk, score, index };
     });
-    
+
     // Sort by score and return top k results
     const results = scoredChunks
       .filter(item => item.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, k)
       .map(item => item.chunk);
-    
+
     console.log(`📖 Found ${results.length} relevant chunks`);
-    
+
     // Log the actual content being returned for debugging
     results.forEach((result, index) => {
       console.log(`📖 Result ${index + 1}: ${result.substring(0, 200)}...`);
     });
-    
+
     return results;
-    
+
   } catch (error) {
     console.error('❌ Error searching Plumb:', error);
     // Return empty array on error to allow graceful degradation
@@ -226,7 +226,7 @@ async function searchPlumb(query, k = 3) {
 async function generateEnhancedSOAP(transcript, previousNotes = []) {
   try {
     console.log('🤖 Generating enhanced SOAP with PlumbRAG...');
-    
+
     // First, generate S, O, A sections
     const systemPrompt = `You are a medical scribe specialized in veterinary care. 
 Your job is to extract and summarize the relevant information 
@@ -240,14 +240,14 @@ Each field should be a simple string, not an object or nested structure.
 Additional context: Consider the patient's medical history from previous SOAP notes to ensure continuity and reference ongoing treatments or follow-up items where relevant.`;
 
     // Prepare historical context
-    const historyContext = previousNotes.length > 0 
-      ? previousNotes.map((note, index) => 
-          `Previous Note ${index + 1}:\n` +
-          `Subjective: ${note.subjective}\n` +
-          `Objective: ${note.objective}\n` +
-          `Assessment: ${note.assessment}\n` +
-          `Plan: ${note.plan}\n`
-        ).join('\n---\n')
+    const historyContext = previousNotes.length > 0
+      ? previousNotes.map((note, index) =>
+        `Previous Note ${index + 1}:\n` +
+        `Subjective: ${note.subjective}\n` +
+        `Objective: ${note.objective}\n` +
+        `Assessment: ${note.assessment}\n` +
+        `Plan: ${note.plan}\n`
+      ).join('\n---\n')
       : 'No previous medical history available.';
 
     const userPrompt = `Please create a SOAP note from this consultation transcript, considering the patient's medical history:
@@ -271,7 +271,7 @@ Generate a new SOAP note that builds upon the historical context while focusing 
     });
 
     const content = response.choices[0]?.message?.content;
-    
+
     if (!content) {
       throw new Error('No response content from OpenAI');
     }
@@ -283,7 +283,7 @@ Generate a new SOAP note that builds upon the historical context while focusing 
     try {
       // Clean the response to extract JSON from markdown code blocks
       let cleanedResponse = content.trim();
-      
+
       // Remove markdown code block markers
       if (cleanedResponse.startsWith('```json')) {
         cleanedResponse = cleanedResponse.replace(/^```json\s*/, '');
@@ -294,9 +294,9 @@ Generate a new SOAP note that builds upon the historical context while focusing 
       if (cleanedResponse.endsWith('```')) {
         cleanedResponse = cleanedResponse.replace(/\s*```$/, '');
       }
-      
+
       soapNote = JSON.parse(cleanedResponse);
-      
+
       // Validate that all required fields are present
       if (!soapNote.subjective || !soapNote.objective || !soapNote.assessment || !soapNote.plan) {
         throw new Error('Invalid SOAP note structure - missing required fields');
@@ -305,7 +305,7 @@ Generate a new SOAP note that builds upon the historical context while focusing 
     } catch (parseError) {
       console.error('❌ Failed to parse JSON response:', parseError);
       console.log('Raw content that failed to parse:', content);
-      
+
       // Try to extract SOAP sections using regex as fallback
       const fallbackSoap = extractSoapFromText(content);
       if (fallbackSoap) {
@@ -318,23 +318,23 @@ Generate a new SOAP note that builds upon the historical context while focusing 
     // Now enhance the Plan section using PlumbRAG
     try {
       console.log('🔍 Enhancing Plan section with PlumbRAG...');
-      
+
       // Extract pet information from transcript
       const petInfo = await extractPetInfo(transcript);
-      
+
       // Initialize PlumbRAG if not already done
       await initializePlumbRAG();
-      
+
       // Build more specific query based on assessment and pet info
       let assessmentQuery = `Cefaclor bronchitis respiratory infection`;
-      
+
       // Add species-specific information to query
       if (petInfo.species !== 'unknown') {
         assessmentQuery += ` ${petInfo.species}`;
       } else {
         assessmentQuery += ` dogs cats`;
       }
-      
+
       // Add weight and age considerations
       if (petInfo.weight !== 'unknown') {
         assessmentQuery += ` ${petInfo.weight}kg weight`;
@@ -342,18 +342,18 @@ Generate a new SOAP note that builds upon the historical context while focusing 
       if (petInfo.age !== 'unknown') {
         assessmentQuery += ` ${petInfo.age} years old`;
       }
-      
+
       assessmentQuery += ` dosage mg/kg`;
-      
+
       console.log('🔍 PlumbRAG query:', assessmentQuery);
       console.log('🐕 Pet info used:', petInfo);
-      
+
       // Search for relevant drug handbook context
       const plumbContext = await searchPlumb(assessmentQuery, 3);
-      
+
       if (plumbContext.length > 0) {
         console.log(`📖 Retrieved ${plumbContext.length} relevant drug handbook entries`);
-        
+
         // Generate enhanced Plan using PlumbRAG context
         const planResponse = await openai.chat.completions.create({
           model: "gpt-4o-mini",
@@ -456,7 +456,7 @@ IMPORTANT:
 3. **Follow-Up:**
    - Schedule follow-up appointment to monitor response to treatment.`;
       }
-      
+
     } catch (plumbError) {
       console.error('❌ Error enhancing plan with PlumbRAG:', plumbError);
       console.log('📝 Continuing with original plan due to PlumbRAG error');
@@ -502,7 +502,7 @@ function extractSoapFromText(text) {
     // Check if we extracted at least some content
     const hasContent = Object.values(result).some(value => value.length > 0);
     return hasContent ? result : null;
-    
+
   } catch (error) {
     console.error('❌ Error in fallback SOAP extraction:', error);
     return null;

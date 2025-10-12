@@ -219,6 +219,11 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
         console.log('🤖 Using LLM processed response');
         console.log('🤖 LLM response length:', generatedPlan.length);
         console.log('🤖 LLM response preview:', generatedPlan.substring(0, 200) + '...');
+        
+        // Clean up the formatting for better UI display
+        console.log('🧹 Before cleanup:', generatedPlan.substring(0, 100) + '...');
+        generatedPlan = cleanPlanFormatting(generatedPlan);
+        console.log('🧹 After cleanup:', generatedPlan.substring(0, 100) + '...');
       } else if (data.results && data.results.length > 0) {
         // Fallback: format the raw results
         generatedPlan = data.results.map((result, index) => 
@@ -262,124 +267,84 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
     return text.trim() ? text.trim().split(/\s+/).length : 0;
   };
 
-  // Parse plan into individual sections
-  const parsePlanSections = (planText: string) => {
-    console.log('🔍 Parsing plan text:', planText);
-    const sections = [];
-    const lines = planText.split('\n');
-    let currentSection = null;
-    let currentContent = [];
-
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      
-      // Check for simplified format: **Plan:** or **Follow-up:**
-      const simpleFormatMatch = trimmedLine.match(/^\*\*([^*]+):\*\*\s*(.*)$/);
-      
-      // Check for markdown headers (### or ####)
-      const markdownHeaderMatch = trimmedLine.match(/^#{3,4}\s*(.+)$/);
-      
-      // Check if this is a section header (starts with number and **) - legacy format
-      const sectionMatch = trimmedLine.match(/^\d+\.\s*\*\*([^*]+)\*\*:?\s*(.*)$/);
-      
-      if (simpleFormatMatch) {
-        // Save previous section if exists
-        if (currentSection) {
-          sections.push({
-            title: currentSection,
-            content: currentContent.join('\n').trim()
-          });
-        }
-        
-        // Start new section from simplified format
-        currentSection = simpleFormatMatch[1];
-        const sectionContent = simpleFormatMatch[2].trim();
-        currentContent = sectionContent ? [sectionContent] : [];
-        console.log('📝 Found simplified section:', currentSection, 'with content:', sectionContent);
-      } else if (markdownHeaderMatch) {
-        // Save previous section if exists
-        if (currentSection) {
-          sections.push({
-            title: currentSection,
-            content: currentContent.join('\n').trim()
-          });
-        }
-        
-        // Start new section from markdown header
-        currentSection = markdownHeaderMatch[1];
-        currentContent = [];
-        console.log('📝 Found markdown section:', currentSection);
-      } else if (sectionMatch) {
-        // Save previous section if exists
-        if (currentSection) {
-          sections.push({
-            title: currentSection,
-            content: currentContent.join('\n').trim()
-          });
-        }
-        
-        // Start new section from legacy format
-        currentSection = sectionMatch[1];
-        const sectionContent = sectionMatch[2].trim();
-        currentContent = sectionContent ? [sectionContent] : [];
-        console.log('📝 Found legacy section:', currentSection, 'with content:', sectionContent);
-      } else if (trimmedLine && currentSection) {
-        // Add content to current section (remove leading dashes, numbers, and clean up)
-        const cleanLine = trimmedLine.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '').trim();
-        if (cleanLine) {
-          currentContent.push(cleanLine);
-        }
-      }
+  // Calculate dynamic height for textarea based on content
+  const calculateTextareaHeight = (text: string) => {
+    if (!text || text.trim().length === 0) {
+      return '120px'; // Collapsed state when empty
     }
     
-    // Don't forget the last section
-    if (currentSection) {
-      sections.push({
-        title: currentSection,
-        content: currentContent.join('\n').trim()
-      });
-    }
-
-    console.log('📋 Parsed sections:', sections);
-    return sections;
+    // Count lines in the text
+    const lines = text.split('\n').length;
+    const minHeight = 120; // Minimum height
+    const lineHeight = 24; // Approximate line height
+    const padding = 32; // Padding for the textarea
+    
+    // Calculate height based on content
+    const calculatedHeight = Math.max(minHeight, (lines * lineHeight) + padding);
+    const maxHeight = 500; // Maximum height to prevent excessive expansion
+    
+    return `${Math.min(calculatedHeight, maxHeight)}px`;
   };
 
-  // Get appropriate icon for each section
-  const getSectionIcon = (title: string) => {
-    const lowerTitle = title.toLowerCase();
-    if (lowerTitle.includes('diagnostic')) {
-      return <ClipboardList className="h-4 w-4 text-white" />;
-    } else if (lowerTitle.includes('medication')) {
-      return <Pill className="h-4 w-4 text-white" />;
-    } else if (lowerTitle.includes('follow')) {
-      return <Target className="h-4 w-4 text-white" />;
-    } else if (lowerTitle.includes('education') || lowerTitle.includes('client') || lowerTitle.includes('owner')) {
-      return <FileText className="h-4 w-4 text-white" />;
-    } else if (lowerTitle.includes('environmental')) {
-      return <Calculator className="h-4 w-4 text-white" />;
-    } else {
-      return <Target className="h-4 w-4 text-white" />;
-    }
+  // Clean up plan formatting for better UI display
+  const cleanPlanFormatting = (plan: string) => {
+    if (!plan) return plan;
+    
+    console.log('🧹 cleanPlanFormatting called with:', plan.substring(0, 100) + '...');
+    
+    // Remove ALL markdown formatting for clean display in textarea
+    let cleaned = plan
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove **bold** formatting
+      .replace(/\*([^*]+)\*/g, '$1') // Remove *italic* formatting
+      .replace(/###+/g, '') // Remove multiple # headers
+      .replace(/\n{3,}/g, '\n\n') // Reduce multiple newlines to double
+      .replace(/\*\*Treatment Plan for.*?:\*\*/g, '') // Remove verbose headers
+      .replace(/\*\*Diagnosis:\*\*.*?\n/g, '') // Remove diagnosis sections
+      .replace(/\*\*Administration:\*\*.*?\n/g, '') // Remove administration details
+      .trim();
+    
+    // Ensure proper spacing around bullet points
+    cleaned = cleaned
+      .replace(/\n-\s/g, '\n- ') // Standardize bullet points
+      .replace(/\n\*\s/g, '\n- ') // Convert * to - for consistency
+      .replace(/\n\d+\.\s/g, '\n- '); // Convert numbered lists to bullets
+    
+    // Remove excessive whitespace
+    cleaned = cleaned.replace(/\n\s*\n/g, '\n\n');
+    
+    console.log('🧹 cleanPlanFormatting returning:', cleaned.substring(0, 100) + '...');
+    return cleaned;
   };
 
-  // Update individual plan section
-  const updatePlanSection = (sectionIndex: number, newContent: string) => {
-    const sections = parsePlanSections(soapNote.plan);
-    if (sections[sectionIndex]) {
-      sections[sectionIndex].content = newContent;
-      
-      // Reconstruct the full plan
-      const reconstructedPlan = sections.map((section, index) => {
-        const contentLines = section.content.split('\n').map(line => 
-          line.trim() ? `   - ${line.trim()}` : ''
-        ).filter(line => line).join('\n');
-        
-        return `${index + 1}. **${section.title}:**\n${contentLines}`;
-      }).join('\n\n');
-      
-      updateSOAPNote('plan', `**Plan:**\n\n${reconstructedPlan}`);
-    }
+  // Format plan text with bold headings and medication names
+  const formatPlanText = (plan: string) => {
+    if (!plan) return plan;
+    
+    // First clean the text
+    let formatted = cleanPlanFormatting(plan);
+    
+    // Make section headings bold and larger
+    formatted = formatted
+      .replace(/^(Plan:)$/gm, '<strong style="font-size: 16px; font-weight: 700;">$1</strong>')
+      .replace(/^(Follow-up:)$/gm, '<strong style="font-size: 16px; font-weight: 700;">$1</strong>')
+      .replace(/^(Follow up:)$/gm, '<strong style="font-size: 16px; font-weight: 700;">$1</strong>');
+    
+    // Make medication names bold and larger
+    formatted = formatted
+      .replace(/^- (Metoclopramide):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:')
+      .replace(/^- (Famotidine):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:')
+      .replace(/^- (Maropitant):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:')
+      .replace(/^- (Fluid therapy):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:')
+      .replace(/^- (Diet):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:')
+      .replace(/^- ([A-Z][a-zA-Z\s]+):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:');
+    
+    // Convert line breaks to HTML
+    formatted = formatted.replace(/\n/g, '<br/>');
+    
+    return formatted;
   };
+
+  // Removed complex plan parsing functions - now using single text field
 
 
   const totalWords = Object.values(soapNote).reduce((total, section) => 
@@ -540,7 +505,7 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
           </div>
         </div>
 
-        {/* Plan Section - Timeline Style with Individual Sections */}
+        {/* Plan Section - Single Dynamic Text Field */}
         <div className="space-y-4">
           <div className="flex items-center gap-3 pb-2 border-b-2 border-green-200">
             <Target className="h-6 w-6 text-green-600" />
@@ -554,63 +519,48 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
             {/* Vertical timeline line */}
             <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-green-300"></div>
             
-            {soapNote.plan ? (
-              <div className="space-y-6">
-                {parsePlanSections(soapNote.plan).map((section, index) => (
-                  <div key={index} className="relative flex items-start">
-                    <div className="flex-shrink-0 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center z-10">
-                      {getSectionIcon(section.title)}
-                    </div>
-                    <div className="ml-4 flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-bold text-gray-800 text-lg">{section.title}</h3>
-                        {wordCount(section.content) > 0 && (
-                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                            {wordCount(section.content)} words
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <Textarea
-                          placeholder={`Enter ${section.title.toLowerCase()} details...`}
-                          value={section.content}
-                          onChange={(e) => updatePlanSection(index, e.target.value)}
-                          className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            <div className="relative flex items-start">
+              <div className="flex-shrink-0 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center z-10">
+                <Target className="h-4 w-4 text-white" />
               </div>
-            ) : (
-              <div className="relative flex items-start">
-                <div className="flex-shrink-0 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center z-10">
-                  <Target className="h-4 w-4 text-white" />
+              <div className="ml-4 flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="font-bold text-gray-800 text-lg">Plan</h3>
+                  {wordCount(soapNote.plan) > 0 && (
+                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                      {wordCount(soapNote.plan)} words
+                    </Badge>
+                  )}
                 </div>
-                <div className="ml-4 flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-bold text-gray-800 text-lg">Plan</h3>
-                  </div>
-                  <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                    <Textarea
-                      placeholder="Treatment plan will be generated using Firebase vector search of veterinary drug index. Click 'Generate Plan' after SOA is complete..."
-                      value={soapNote.plan}
-                      onChange={(e) => updateSOAPNote('plan', e.target.value)}
-                      className="min-h-[120px] resize-none border-0 focus:ring-0 p-0 text-sm"
-                    />
-                  </div>
-                  <div className="text-sm text-gray-600 bg-green-50 p-3 rounded-md border border-green-200 mt-3">
-                    <div className="flex items-center gap-2">
-                      <Calculator className="h-4 w-4 text-green-600" />
-                      <span>
-                        <strong>Firebase Vector Search Treatment Plan:</strong> This section will be populated using Firebase vector search 
-                        of our veterinary drug index to ensure accurate dosages and medication recommendations based on the assessment above.
-                      </span>
-                    </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                  <div 
+                    className="resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed whitespace-pre-wrap"
+                    style={{ 
+                      height: calculateTextareaHeight(soapNote.plan),
+                      minHeight: '120px',
+                      maxHeight: '500px',
+                      overflow: soapNote.plan && soapNote.plan.split('\n').length > 20 ? 'auto' : 'hidden',
+                      fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif'
+                    }}
+                    contentEditable
+                    suppressContentEditableWarning={true}
+                    onInput={(e) => updateSOAPNote('plan', e.currentTarget.textContent || '')}
+                    dangerouslySetInnerHTML={{
+                      __html: formatPlanText(soapNote.plan)
+                    }}
+                  />
+                </div>
+                <div className="text-sm text-gray-600 bg-green-50 p-3 rounded-md border border-green-200 mt-3">
+                  <div className="flex items-center gap-2">
+                    <Calculator className="h-4 w-4 text-green-600" />
+                    <span>
+                      <strong>Firebase Vector Search Treatment Plan:</strong> This section will be populated using Firebase vector search 
+                      of our veterinary drug index to ensure accurate dosages and medication recommendations based on the assessment above.
+                    </span>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </CardContent>

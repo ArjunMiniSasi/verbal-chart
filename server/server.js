@@ -147,7 +147,7 @@ app.post('/api/generate-soap', async (req, res) => {
 // Firebase Vector Search endpoint
 app.post('/api/vector-search', async (req, res) => {
   try {
-    const { query, limit = 5 } = req.body;
+    const { query, limit = 10 } = req.body;
 
     if (!query) {
       return res.status(400).json({ error: 'Query is required' });
@@ -155,12 +155,12 @@ app.post('/api/vector-search', async (req, res) => {
 
     console.log('🔍 Vector search query:', query);
 
-    // Generate embedding for the query using a model that produces 768 dimensions
+    // Generate embedding for the query using text-embedding-3-small (1536 dimensions)
     const embeddingResponse = await openai.embeddings.create({
-      model: 'text-embedding-3-small', // This model produces 1536 dimensions, but we'll truncate to 768
+      model: 'text-embedding-3-small', // This model produces 1536 dimensions
       input: query,
     });
-    // Truncate to 768 dimensions to match stored embeddings
+    // Truncate to 768 dimensions to match stored embeddings in Firebase
     const queryEmbedding = embeddingResponse.data[0].embedding.slice(0, 768);
 
     console.log('📊 Generated query embedding with', queryEmbedding.length, 'dimensions');
@@ -219,7 +219,7 @@ app.post('/api/vector-search', async (req, res) => {
           if (processedCount <= 5) {
             console.log(`📊 ${drugName}: similarity ${similarity.toFixed(4)}`);
           }
-          if (similarity > 0.01) { // Very low threshold for testing
+          if (similarity > -0.1) { // Lower threshold to capture more relevant results
             similarities.push({ content, similarity, drugName, id: doc.id });
           }
         } catch (error) {
@@ -263,7 +263,7 @@ app.post('/api/vector-search', async (req, res) => {
         totalDocuments: processedCount,
         validEmbeddings: validEmbeddingCount,
         queryEmbeddingDimensions: queryEmbedding.length,
-        similarityThreshold: 0.01
+        similarityThreshold: -0.1
       }
     });
 
@@ -310,30 +310,34 @@ async function processResultsWithLLM(query, results) {
       `${index + 1}. ${result.drugName || result.id} (Similarity: ${result.similarity.toFixed(3)})\n   ${result.content}`
     ).join('\n\n');
 
-    const prompt = `Based on the following veterinary drug information retrieved for the query "${query}", provide a concise treatment plan for doctors:
+    const prompt = `Based on veterinary drug information for "${query}":
 
 SEARCH RESULTS:
 ${context}
 
-Provide ONLY a simple, doctor-friendly treatment plan with:
-**Plan:** List core medications with dosages (max 3-4 items)
-**Follow-up:** When to recheck and what to monitor
+Create a brief treatment plan:
 
-Format as a simple list. Be brief and focused.`;
+**Plan:**
+- 3-4 medications with dosages (mg/kg) and frequency
+
+**Follow-up:**
+- Recheck timeframe and monitoring
+
+Keep it very brief.`;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: 'You are a veterinary expert providing concise treatment plans for doctors. Be brief, focused, and include only essential medications with dosages. Avoid lengthy explanations or multiple sections.'
+          content: 'You are a veterinary expert providing concise treatment plans. Be brief, focused, and include only essential medications with dosages. Format as simple bullet points for easy reading.'
         },
         {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: 300,
+      max_tokens: 200,
       temperature: 0.1
     });
 
