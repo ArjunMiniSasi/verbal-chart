@@ -16,6 +16,7 @@
     "dev:full": "concurrently \"npm run dev\" \"npm run server\""
   },
   "dependencies": {
+    "@genkit-ai/firebase": "^1.21.0",
     "@hookform/resolvers": "^3.10.0",
     "@prisma/client": "^5.22.0",
     "@radix-ui/react-accordion": "^1.2.11",
@@ -54,7 +55,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "firebase": "^12.3.0",
-    "framer-motion": "^12.23.12",
+    "framer-motion": "^12.23.22",
     "input-otp": "^1.4.2",
     "jspdf": "^2.5.2",
     "lucide-react": "^0.462.0",
