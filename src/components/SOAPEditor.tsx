@@ -6,6 +6,7 @@ import { FileText, Eye, Download, Save, Loader2, Stethoscope, ClipboardList, Bra
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+// Removed import - now using server API directly
 
 // Use the same API base URL as other components
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -170,71 +171,80 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
     // Expand the plan section when generate plan is clicked
     setIsPlanExpanded(true);
     setIsGeneratingPlan(true);
-    console.log('🚀 Starting plan generation...');
+    console.log('🚀 Starting plan generation with Firebase vector search...');
 
     try {
       const transcriptText = transcript.map(chunk => chunk.text).join(' ');
       console.log('🚀 Transcript text:', transcriptText);
-      console.log('🚀 API URL:', `${API_BASE_URL}/api/generate-soap`);
+      console.log('🚀 Transcript length:', transcript.length);
+      console.log('🚀 Assessment text:', soapNote.assessment);
+      console.log('🚀 Assessment length:', soapNote.assessment.length);
       
-      // Call the backend API to generate enhanced SOAP with PlumbRAG
-      const response = await fetch(`${API_BASE_URL}/api/generate-soap`, {
+      // Create a comprehensive query for vector search
+      const searchQuery = `${soapNote.assessment} ${transcriptText}`.trim();
+      console.log('🔍 Vector search query:', searchQuery);
+      console.log('🔍 Query length:', searchQuery.length);
+      
+      // Call the server API for vector search with LLM processing
+      const response = await fetch(`${API_BASE_URL}/api/vector-search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          transcript: transcriptText,
-          previousNotes: []
+          query: searchQuery,
+          limit: 5
         }),
       });
-      
-      console.log('🚀 API Response received:', response);
+
+      console.log('📡 Vector search response status:', response.status);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('📋 Enhanced SOAP Response data:', data);
+      console.log('📋 Vector search response data:', data);
+      console.log('📋 Has llmResponse:', !!data.llmResponse);
+      console.log('📋 Results count:', data.results ? data.results.length : 0);
       
       if (data.error) {
         throw new Error(data.error);
       }
 
-      // Handle the response - data.soapNote should already be an object
-      let soapData;
-      if (typeof data.soapNote === 'string') {
-        // If it's a string, try to parse it
-        try {
-          soapData = JSON.parse(data.soapNote);
-        } catch (parseError) {
-          console.error('JSON parse error:', parseError);
-          // If parsing fails, try to extract JSON from the response
-          const jsonMatch = data.soapNote.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            soapData = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error('Invalid response format');
-          }
-        }
+      // Use the LLM response if available, otherwise use the raw results
+      let generatedPlan;
+      if (data.llmResponse) {
+        generatedPlan = data.llmResponse;
+        console.log('🤖 Using LLM processed response');
+        console.log('🤖 LLM response length:', generatedPlan.length);
+        console.log('🤖 LLM response preview:', generatedPlan.substring(0, 200) + '...');
+      } else if (data.results && data.results.length > 0) {
+        // Fallback: format the raw results
+        generatedPlan = data.results.map((result, index) => 
+          `${index + 1}. ${result.drugName || result.id} (Similarity: ${result.similarity.toFixed(3)})\n   ${result.content}`
+        ).join('\n\n');
+        console.log('📋 Using raw results as fallback');
+        console.log('📋 Fallback plan length:', generatedPlan.length);
       } else {
-        soapData = data.soapNote;
+        throw new Error('No relevant drug information found for the assessment');
       }
-
-      // Update the SOAP note with the enhanced plan
-      if (soapData.plan) {
-        console.log('🔍 Received plan data:', soapData.plan);
-        updateSOAPNote('plan', soapData.plan);
-        
-        toast({
-          title: "Plan Generated Successfully",
-          description: "Treatment plan has been generated with PlumbRAG drug recommendations.",
-          variant: "default"
-        });
-      } else {
-        throw new Error('No plan data received');
-      }
+      
+      console.log('🔍 Generated plan with Firebase vector search:', generatedPlan);
+      console.log('🔍 Plan length:', generatedPlan.length);
+      
+      // Update the SOAP note with the generated plan
+      updateSOAPNote('plan', generatedPlan);
+      
+      // Debug: Check if the plan was updated
+      console.log('✅ Plan updated in store');
+      console.log('✅ Current soapNote.plan after update:', soapNote.plan);
+      
+      toast({
+        title: "Plan Generated Successfully",
+        description: "Treatment plan has been generated using Firebase vector search of veterinary drug index.",
+        variant: "default"
+      });
 
     } catch (error) {
       console.error('Plan generation error:', error);
@@ -263,10 +273,16 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
     for (const line of lines) {
       const trimmedLine = line.trim();
       
-      // Check if this is a section header (starts with number and **) - updated regex to handle content on same line
+      // Check for simplified format: **Plan:** or **Follow-up:**
+      const simpleFormatMatch = trimmedLine.match(/^\*\*([^*]+):\*\*\s*(.*)$/);
+      
+      // Check for markdown headers (### or ####)
+      const markdownHeaderMatch = trimmedLine.match(/^#{3,4}\s*(.+)$/);
+      
+      // Check if this is a section header (starts with number and **) - legacy format
       const sectionMatch = trimmedLine.match(/^\d+\.\s*\*\*([^*]+)\*\*:?\s*(.*)$/);
       
-      if (sectionMatch) {
+      if (simpleFormatMatch) {
         // Save previous section if exists
         if (currentSection) {
           sections.push({
@@ -275,14 +291,41 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
           });
         }
         
-        // Start new section
+        // Start new section from simplified format
+        currentSection = simpleFormatMatch[1];
+        const sectionContent = simpleFormatMatch[2].trim();
+        currentContent = sectionContent ? [sectionContent] : [];
+        console.log('📝 Found simplified section:', currentSection, 'with content:', sectionContent);
+      } else if (markdownHeaderMatch) {
+        // Save previous section if exists
+        if (currentSection) {
+          sections.push({
+            title: currentSection,
+            content: currentContent.join('\n').trim()
+          });
+        }
+        
+        // Start new section from markdown header
+        currentSection = markdownHeaderMatch[1];
+        currentContent = [];
+        console.log('📝 Found markdown section:', currentSection);
+      } else if (sectionMatch) {
+        // Save previous section if exists
+        if (currentSection) {
+          sections.push({
+            title: currentSection,
+            content: currentContent.join('\n').trim()
+          });
+        }
+        
+        // Start new section from legacy format
         currentSection = sectionMatch[1];
         const sectionContent = sectionMatch[2].trim();
         currentContent = sectionContent ? [sectionContent] : [];
-        console.log('📝 Found section:', currentSection, 'with content:', sectionContent);
+        console.log('📝 Found legacy section:', currentSection, 'with content:', sectionContent);
       } else if (trimmedLine && currentSection) {
-        // Add content to current section (remove leading dashes and clean up)
-        const cleanLine = trimmedLine.replace(/^-\s*/, '').trim();
+        // Add content to current section (remove leading dashes, numbers, and clean up)
+        const cleanLine = trimmedLine.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '').trim();
         if (cleanLine) {
           currentContent.push(cleanLine);
         }
@@ -503,7 +546,7 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
             <Target className="h-6 w-6 text-green-600" />
             <h2 className="text-xl font-bold text-gray-900">Treatment Plan</h2>
             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              PlumbRAG Enhanced
+              Firebase Vector Search
             </Badge>
           </div>
           
@@ -550,7 +593,7 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
                   </div>
                   <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                     <Textarea
-                      placeholder="Treatment plan will be generated using PlumbRAG veterinary drug database. Click 'Generate Plan' after SOA is complete..."
+                      placeholder="Treatment plan will be generated using Firebase vector search of veterinary drug index. Click 'Generate Plan' after SOA is complete..."
                       value={soapNote.plan}
                       onChange={(e) => updateSOAPNote('plan', e.target.value)}
                       className="min-h-[120px] resize-none border-0 focus:ring-0 p-0 text-sm"
@@ -560,8 +603,8 @@ Generate SOA (Subjective, Objective, Assessment) notes for this veterinary consu
                     <div className="flex items-center gap-2">
                       <Calculator className="h-4 w-4 text-green-600" />
                       <span>
-                        <strong>PlumbRAG Treatment Plan:</strong> This section will be populated using our veterinary drug database 
-                        to ensure accurate dosages and medication recommendations based on the assessment above.
+                        <strong>Firebase Vector Search Treatment Plan:</strong> This section will be populated using Firebase vector search 
+                        of our veterinary drug index to ensure accurate dosages and medication recommendations based on the assessment above.
                       </span>
                     </div>
                   </div>

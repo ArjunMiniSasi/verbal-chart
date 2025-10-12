@@ -11,6 +11,8 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
+    "firebase:populate": "node scripts/populateFirebaseVectorIndex.js",
+    "firebase:test": "node scripts/testFirebaseVectorSearch.js",
     "server": "cd server && npm install && npm run dev",
     "server:prod": "cd server && npm install && npm start",
     "dev:full": "concurrently \"npm run dev\" \"npm run server\""
@@ -53,6 +55,7 @@
     "cmdk": "^1.1.1",
     "concurrently": "^8.2.2",
     "date-fns": "^3.6.0",
+    "dotenv": "^17.2.3",
     "embla-carousel-react": "^8.6.0",
     "firebase": "^12.3.0",
     "framer-motion": "^12.23.22",
