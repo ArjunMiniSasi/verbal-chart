@@ -130,8 +130,8 @@ app.post('/api/generate-soap', async (req, res) => {
     console.log('📝 Transcript length:', transcript.length);
     console.log('📚 Previous notes count:', previousNotes ? previousNotes.length : 0);
 
-    // Use our enhanced SOAP generation with PlumbRAG
-    const soapNote = await generateEnhancedSOAP(transcript, previousNotes || []);
+    // Use our enhanced SOAP generation with PlumbRAG (SOA only, no plan)
+    const soapNote = await generateEnhancedSOAP(transcript, previousNotes || [], false);
 
     console.log('🎯 Final enhanced SOAP note:', soapNote);
     res.json({ soapNote });
