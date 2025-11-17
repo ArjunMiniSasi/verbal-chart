@@ -232,24 +232,6 @@ ${soapNote.plan}
     return text.trim().split(/\s+/).filter(word => word.length > 0).length;
   };
 
-  // Calculate dynamic height for textarea based on content
-  const calculateTextareaHeight = (text: string) => {
-    if (!text || text.trim().length === 0) {
-      return '120px'; // Collapsed state when empty
-    }
-    
-    // Count lines in the text
-    const lines = text.split('\n').length;
-    const minHeight = 120; // Minimum height
-    const lineHeight = 24; // Approximate line height
-    const padding = 32; // Padding for the textarea
-    
-    // Calculate height based on content
-    const calculatedHeight = Math.max(minHeight, (lines * lineHeight) + padding);
-    const maxHeight = 500; // Maximum height to prevent excessive expansion
-    
-    return `${Math.min(calculatedHeight, maxHeight)}px`;
-  };
 
   // Clean up plan formatting for better UI display
   const cleanPlanFormatting = (plan: string) => {
@@ -281,56 +263,32 @@ ${soapNote.plan}
     return cleaned;
   };
 
-  // Format plan text with bold headings and medication names
-  const formatPlanText = (plan: string) => {
-    if (!plan) return plan;
-    
-    // First clean the text
-    let formatted = cleanPlanFormatting(plan);
-    
-    // Make section headings bold and larger
-    formatted = formatted
-      .replace(/^(Plan:)$/gm, '<strong style="font-size: 16px; font-weight: 700;">$1</strong>')
-      .replace(/^(Follow-up:)$/gm, '<strong style="font-size: 16px; font-weight: 700;">$1</strong>')
-      .replace(/^(Follow up:)$/gm, '<strong style="font-size: 16px; font-weight: 700;">$1</strong>');
-    
-    // Make medication names bold and larger
-    formatted = formatted
-      .replace(/^- (Metoclopramide):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:')
-      .replace(/^- (Famotidine):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:')
-      .replace(/^- (Maropitant):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:')
-      .replace(/^- (Fluid therapy):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:')
-      .replace(/^- (Diet):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:')
-      .replace(/^- ([A-Z][a-zA-Z\s]+):/gm, '- <strong style="font-size: 14px; font-weight: 600;">$1</strong>:');
-    
-    // Convert line breaks to HTML
-    formatted = formatted.replace(/\n/g, '<br/>');
-    
-    return formatted;
-  };
 
 
   const totalWords = wordCount(soapNote.subjective) + wordCount(soapNote.objective) + wordCount(soapNote.assessment) + wordCount(soapNote.plan);
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-6 w-6 text-blue-600" />
-            SOAP Note Editor
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+      <CardHeader className="pb-6">
+        <div className="flex flex-col space-y-4">
+          {/* Title and Word Count Row */}
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-3 text-2xl">
+              <FileText className="h-7 w-7 text-blue-600" />
+              SOAP Note Editor
+            </CardTitle>
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 px-3 py-1">
               {totalWords} words total
             </Badge>
           </div>
-          <div className="flex gap-2">
+          
+          {/* Action Buttons Row */}
+          <div className="flex flex-wrap gap-3">
             <Button 
               variant="outline" 
               onClick={generateSOA}
               disabled={transcript.length === 0 || isGenerating}
-              className="gap-2"
+              className="gap-2 px-4 py-2"
             >
               {isGenerating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -343,7 +301,7 @@ ${soapNote.plan}
               variant="outline" 
               onClick={generatePlan}
               disabled={!soapNote.assessment || isGeneratingPlan}
-              className="gap-2 bg-green-600 hover:bg-green-700 text-white border-green-600"
+              className="gap-2 bg-green-600 hover:bg-green-700 text-white border-green-600 px-4 py-2"
             >
               {isGeneratingPlan ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -355,7 +313,7 @@ ${soapNote.plan}
             <Button 
               variant="outline" 
               onClick={() => setShowPreview(true)}
-              className="gap-2"
+              className="gap-2 px-4 py-2"
             >
               <Eye className="h-4 w-4" />
               Preview
@@ -363,7 +321,7 @@ ${soapNote.plan}
             <Button 
               variant="outline" 
               onClick={exportSOAP}
-              className="gap-2"
+              className="gap-2 px-4 py-2"
             >
               <Download className="h-4 w-4" />
               Export
@@ -371,94 +329,94 @@ ${soapNote.plan}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-8 px-6">
         <>
             {/* Medical Record Section - Timeline Style */}
-            <div className="space-y-4">
-          <div className="flex items-center gap-3 pb-2 border-b-2 border-blue-200">
-            <Stethoscope className="h-6 w-6 text-blue-600" />
-            <h2 className="text-xl font-bold text-gray-900">Medical Record</h2>
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            <div className="space-y-6">
+          <div className="flex items-center gap-4 pb-4 border-b-2 border-blue-200">
+            <Stethoscope className="h-7 w-7 text-blue-600" />
+            <h2 className="text-2xl font-bold text-gray-900">Medical Record</h2>
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 px-3 py-1">
               SOA Generated
             </Badge>
           </div>
           
-          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+          <div className="bg-gray-50 p-8 rounded-lg border border-gray-200">
             {/* Timeline container */}
             <div className="relative">
               {/* Vertical timeline line */}
-              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-blue-300"></div>
+              <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-blue-300"></div>
               
               {/* Subjective */}
-              <div className="relative flex items-start mb-6">
-                <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center z-10">
-                  <Stethoscope className="h-4 w-4 text-white" />
+              <div className="relative flex items-start mb-8">
+                <div className="flex-shrink-0 w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center z-10">
+                  <Stethoscope className="h-5 w-5 text-white" />
                 </div>
-                <div className="ml-4 flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-bold text-gray-800 text-lg">Subjective</h3>
+                <div className="ml-6 flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h3 className="font-bold text-gray-800 text-xl">Subjective</h3>
                     {wordCount(soapNote.subjective) > 0 && (
-                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                      <Badge variant="outline" className="text-sm bg-blue-50 text-blue-700 border-blue-200 px-2 py-1">
                         {wordCount(soapNote.subjective)} words
                       </Badge>
                     )}
                   </div>
-                  <div className="bg-white p-3 rounded border border-gray-200">
+                  <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                     <Textarea
                       placeholder="Patient history, symptoms, and owner concerns..."
                       value={soapNote.subjective}
                       onChange={(e) => updateSOAPNote('subjective', e.target.value)}
-                      className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm"
+                      className="min-h-[100px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Objective */}
-              <div className="relative flex items-start mb-6">
-                <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center z-10">
-                  <ClipboardList className="h-4 w-4 text-white" />
+              <div className="relative flex items-start mb-8">
+                <div className="flex-shrink-0 w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center z-10">
+                  <ClipboardList className="h-5 w-5 text-white" />
                 </div>
-                <div className="ml-4 flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-bold text-gray-800 text-lg">Objective</h3>
+                <div className="ml-6 flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h3 className="font-bold text-gray-800 text-xl">Objective</h3>
                     {wordCount(soapNote.objective) > 0 && (
-                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                      <Badge variant="outline" className="text-sm bg-blue-50 text-blue-700 border-blue-200 px-2 py-1">
                         {wordCount(soapNote.objective)} words
                       </Badge>
                     )}
                   </div>
-                  <div className="bg-white p-3 rounded border border-gray-200">
+                  <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                     <Textarea
                       placeholder="Physical examination findings, vital signs, and test results..."
                       value={soapNote.objective}
                       onChange={(e) => updateSOAPNote('objective', e.target.value)}
-                      className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm"
+                      className="min-h-[100px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Assessment */}
-              <div className="relative flex items-start mb-6">
-                <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center z-10">
-                  <Brain className="h-4 w-4 text-white" />
+              <div className="relative flex items-start mb-8">
+                <div className="flex-shrink-0 w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center z-10">
+                  <Brain className="h-5 w-5 text-white" />
                 </div>
-                <div className="ml-4 flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-bold text-gray-800 text-lg">Assessment</h3>
+                <div className="ml-6 flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h3 className="font-bold text-gray-800 text-xl">Assessment</h3>
                     {wordCount(soapNote.assessment) > 0 && (
-                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                      <Badge variant="outline" className="text-sm bg-blue-50 text-blue-700 border-blue-200 px-2 py-1">
                         {wordCount(soapNote.assessment)} words
                       </Badge>
                     )}
                   </div>
-                  <div className="bg-white p-3 rounded border border-gray-200">
+                  <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                     <Textarea
                       placeholder="Clinical assessment, diagnosis, and differential diagnoses..."
                       value={soapNote.assessment}
                       onChange={(e) => updateSOAPNote('assessment', e.target.value)}
-                      className="min-h-[60px] resize-none border-0 focus:ring-0 p-0 text-sm"
+                      className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
                     />
                   </div>
                 </div>
@@ -468,53 +426,43 @@ ${soapNote.plan}
         </div>
 
         {/* Plan Section - Single Dynamic Text Field */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 pb-2 border-b-2 border-green-200">
-            <Target className="h-6 w-6 text-green-600" />
-            <h2 className="text-xl font-bold text-gray-900">Treatment Plan</h2>
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+        <div className="space-y-6">
+          <div className="flex items-center gap-4 pb-4 border-b-2 border-green-200">
+            <Target className="h-7 w-7 text-green-600" />
+            <h2 className="text-2xl font-bold text-gray-900">Treatment Plan</h2>
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-3 py-1">
               Firebase Vector Search
             </Badge>
           </div>
           
           <div className="relative">
             {/* Vertical timeline line */}
-            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-green-300"></div>
+            <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-green-300"></div>
             
             <div className="relative flex items-start">
-              <div className="flex-shrink-0 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center z-10">
-                <Target className="h-4 w-4 text-white" />
+              <div className="flex-shrink-0 w-12 h-12 bg-green-600 rounded-full flex items-center justify-center z-10">
+                <Target className="h-5 w-5 text-white" />
               </div>
-              <div className="ml-4 flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="font-bold text-gray-800 text-lg">Plan</h3>
+              <div className="ml-6 flex-1">
+                <div className="flex items-center gap-3 mb-3">
+                  <h3 className="font-bold text-gray-800 text-xl">Plan</h3>
                   {wordCount(soapNote.plan) > 0 && (
-                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                    <Badge variant="outline" className="text-sm bg-green-50 text-green-700 border-green-200 px-2 py-1">
                       {wordCount(soapNote.plan)} words
                     </Badge>
                   )}
                 </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <div 
-                    className="resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed whitespace-pre-wrap"
-                    style={{ 
-                      height: calculateTextareaHeight(soapNote.plan),
-                      minHeight: '120px',
-                      maxHeight: '500px',
-                      overflow: soapNote.plan && soapNote.plan.split('\n').length > 20 ? 'auto' : 'hidden',
-                      fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif'
-                    }}
-                    contentEditable
-                    suppressContentEditableWarning={true}
-                    onInput={(e) => updateSOAPNote('plan', e.currentTarget.textContent || '')}
-                    dangerouslySetInnerHTML={{
-                      __html: formatPlanText(soapNote.plan)
-                    }}
+                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                  <Textarea
+                    placeholder="Treatment plan, medications, and follow-up recommendations..."
+                    value={soapNote.plan}
+                    onChange={(e) => updateSOAPNote('plan', e.target.value)}
+                    className="min-h-[150px] max-h-[500px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed overflow-y-auto"
                   />
                 </div>
-                <div className="text-sm text-gray-600 bg-green-50 p-3 rounded-md border border-green-200 mt-3">
-                  <div className="flex items-center gap-2">
-                    <Calculator className="h-4 w-4 text-green-600" />
+                <div className="text-sm text-gray-600 bg-green-50 p-4 rounded-lg border border-green-200 mt-4">
+                  <div className="flex items-center gap-3">
+                    <Calculator className="h-5 w-5 text-green-600" />
                     <span>
                       <strong>Firebase Vector Search Treatment Plan:</strong> This section will be populated using Firebase vector search 
                       of our veterinary drug index to ensure accurate dosages and medication recommendations based on the assessment above.

@@ -19,7 +19,7 @@ export interface TranscriptionError {
 export const transcribeAudio = async (audioFile: File): Promise<TranscriptionResponse> => {
   console.log('🎤 Starting transcription for file:', audioFile.name, 'Size:', audioFile.size);
   console.log('🌐 API URL:', `${API_BASE_URL}/api/transcribe`);
-  
+
   const formData = new FormData();
   formData.append('audio', audioFile);
 
@@ -104,7 +104,7 @@ export const generateSoapNote = async (transcript: string, previousNotes: SoapNo
       transcript,
       previousNotes
     };
-    
+
     console.log('📤 Request body:', requestBody);
 
     const response = await fetch(`${API_BASE_URL}/api/generate-soap`, {
