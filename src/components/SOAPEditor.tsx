@@ -66,13 +66,13 @@ export const SOAPEditor = () => {
       const data = await response.json();
       console.log('📝 Generated SOAP data:', data);
 
-      // Update the SOAP note with the generated data
+      // Update the SOAP note with the generated data (SOA only, NOT plan)
       // The backend returns { soapNote: { subjective, objective, assessment, plan } }
       const soapData = data.soapNote || data;
       updateSOAPNote('subjective', soapData.subjective || '');
       updateSOAPNote('objective', soapData.objective || '');
       updateSOAPNote('assessment', soapData.assessment || '');
-      updateSOAPNote('plan', soapData.plan || '');
+      // DO NOT update plan here - plan should only be generated via Generate Plan button
 
       toast({
         title: "SOAP note generated successfully",
@@ -91,94 +91,69 @@ export const SOAPEditor = () => {
   };
 
   const generatePlan = async () => {
-    if (!soapNote.subjective || !soapNote.objective || !soapNote.assessment || 
-        soapNote.subjective.trim().length === 0 || soapNote.objective.trim().length === 0 || soapNote.assessment.trim().length === 0) {
+    if (!soapNote.assessment || soapNote.assessment.trim().length === 0) {
       toast({
-        title: "SOA sections required",
-        description: "Please complete all SOA sections (Subjective, Objective, Assessment) first.",
+        title: "Assessment required",
+        description: "Please complete the Assessment section first (use Generate SOA if needed).",
         variant: "destructive"
       });
       return;
     }
 
     setIsGeneratingPlan(true);
-    console.log('🚀 Starting plan generation with Firebase vector search...');
+    console.log('🚀 Starting plan generation with Plumb RAG...');
+    console.log('🚀 Assessment text:', soapNote.assessment);
 
     try {
-      const transcriptText = transcript.map(chunk => chunk.text).join(' ');
-      console.log('🚀 Transcript text:', transcriptText);
-      console.log('🚀 Transcript length:', transcript.length);
-      console.log('🚀 Assessment text:', soapNote.assessment);
-      console.log('🚀 Assessment length:', soapNote.assessment.length);
-      
-      // Create a comprehensive query for vector search
-      const searchQuery = `${soapNote.assessment} ${transcriptText}`.trim();
-      console.log('🔍 Vector search query:', searchQuery);
-      console.log('🔍 Query length:', searchQuery.length);
-      
-      // Call the server API for vector search with LLM processing
-      const response = await fetch(`${API_BASE_URL}/api/vector-search`, {
+      // Use the new /api/generate-plan endpoint that uses Plumb data
+      const response = await fetch(`${API_BASE_URL}/api/generate-plan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          query: searchQuery,
-          limit: 5
+          subjective: soapNote.subjective,
+          objective: soapNote.objective,
+          assessment: soapNote.assessment,
+          k: 5 // Number of Plumb references to use
         }),
       });
 
-      console.log('📡 Vector search response status:', response.status);
+      console.log('📡 Generate plan response status:', response.status);
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('📋 Vector search response data:', data);
-      console.log('📋 Has llmResponse:', !!data.llmResponse);
-      console.log('📋 Results count:', data.results ? data.results.length : 0);
+      console.log('📋 Generate plan response data:', data);
       
       if (data.error) {
         throw new Error(data.error);
       }
 
-      // Use the LLM response if available, otherwise use the raw results
-      let generatedPlan;
-      if (data.llmResponse) {
-        generatedPlan = data.llmResponse;
-        console.log('🤖 Using LLM processed response');
-        console.log('🤖 LLM response length:', generatedPlan.length);
-        console.log('🤖 LLM response preview:', generatedPlan.substring(0, 200) + '...');
-        
-        // Clean up the formatting for better UI display
-        console.log('🧹 Before cleanup:', generatedPlan.substring(0, 100) + '...');
-        generatedPlan = cleanPlanFormatting(generatedPlan);
-        console.log('🧹 After cleanup:', generatedPlan.substring(0, 100) + '...');
-      } else if (data.results && data.results.length > 0) {
-        // Fallback: format the raw results
-        generatedPlan = data.results.map((result, index) => 
-          `${index + 1}. ${result.drugName || result.id} (Similarity: ${result.similarity.toFixed(3)})\n   ${result.content}`
-        ).join('\n\n');
-        console.log('📋 Using raw results as fallback');
-        console.log('📋 Fallback plan length:', generatedPlan.length);
-      } else {
-        throw new Error('No relevant drug information found for the assessment');
+      if (!data.plan) {
+        throw new Error(data.message || 'No plan generated');
       }
-      
-      console.log('🔍 Generated plan with Firebase vector search:', generatedPlan);
-      console.log('🔍 Plan length:', generatedPlan.length);
+
+      // Clean up the formatting for better UI display
+      let generatedPlan = data.plan;
+      console.log('🧹 Before cleanup:', generatedPlan.substring(0, 100) + '...');
+      generatedPlan = cleanPlanFormatting(generatedPlan);
+      console.log('🧹 After cleanup:', generatedPlan.substring(0, 100) + '...');
       
       // Update the SOAP note with the generated plan
       updateSOAPNote('plan', generatedPlan);
       
-      // Debug: Check if the plan was updated
       console.log('✅ Plan updated in store');
-      console.log('✅ Current soapNote.plan after update:', soapNote.plan);
+      console.log('✅ Plan length:', generatedPlan.length);
       
       toast({
         title: "Plan Generated Successfully",
-        description: "Treatment plan has been generated using Firebase vector search of veterinary drug index.",
+        description: data.plumb_available 
+          ? "Treatment plan has been generated using Plumb's Veterinary Drug Handbook."
+          : "Treatment plan generated (Plumb data not available, using general knowledge).",
         variant: "default"
       });
 
@@ -186,7 +161,7 @@ export const SOAPEditor = () => {
       console.error('Plan generation error:', error);
       toast({
         title: "Error generating plan",
-        description: "Please try again or check your connection.",
+        description: error.message || "Please try again or check your connection.",
         variant: "destructive"
       });
     } finally {
