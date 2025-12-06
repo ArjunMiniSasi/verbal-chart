@@ -180,7 +180,7 @@ export const AudioUpload = () => {
               <Button
                 onClick={handleTranscribe}
                 disabled={!uploadedFile || isTranscribing}
-                className="flex-1"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
               >
                 {isTranscribing ? (
                   <>
@@ -190,7 +190,7 @@ export const AudioUpload = () => {
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Transcribe & Generate SOAP
+                    Transcribe
                   </>
                 )}
               </Button>

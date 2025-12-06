@@ -7,6 +7,10 @@ import { AnalyticsWidget } from "@/components/AnalyticsWidget"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
   Users, 
@@ -20,10 +24,18 @@ import {
   AlertCircle
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { useMedoraStore } from "@/stores/medoraStore"
+import { useToast } from "@/hooks/use-toast"
 import { mockPatients } from "@/mocks/seeds"
 
 const DoctorHome = () => {
   const navigate = useNavigate()
+  const { toast } = useToast()
+  const { clearSOAPNote, clearTranscript } = useMedoraStore()
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [scheduleDate, setScheduleDate] = useState('')
+  const [scheduleTime, setScheduleTime] = useState('')
+  const [scheduleReason, setScheduleReason] = useState('')
 
   // Use the mock patients from seeds
   const allPatients = mockPatients
@@ -73,11 +85,23 @@ const DoctorHome = () => {
                 <AddPatientModal />
                 
                 <div className="grid grid-cols-2 gap-3">
-                  <Button variant="outline" className="gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="gap-2"
+                    onClick={() => {
+                      clearSOAPNote()
+                      clearTranscript()
+                      navigate('/new-soap')
+                    }}
+                  >
                     <FileText className="h-4 w-4" />
                     New SOAP
                   </Button>
-                  <Button variant="outline" className="gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="gap-2"
+                    onClick={() => setShowScheduleModal(true)}
+                  >
                     <Calendar className="h-4 w-4" />
                     Schedule
                   </Button>
@@ -221,6 +245,76 @@ const DoctorHome = () => {
           </div>
         </div>
       </div>
+
+      {/* Schedule Modal */}
+      <Dialog open={showScheduleModal} onOpenChange={setShowScheduleModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Schedule Appointment
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="schedule-date">Date</Label>
+              <Input
+                id="schedule-date"
+                type="date"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="schedule-time">Time</Label>
+              <Input
+                id="schedule-time"
+                type="time"
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="schedule-reason">Reason</Label>
+              <Textarea
+                id="schedule-reason"
+                placeholder="Enter reason for appointment..."
+                value={scheduleReason}
+                onChange={(e) => setScheduleReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowScheduleModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!scheduleDate || !scheduleTime) {
+                  toast({
+                    title: "Missing Information",
+                    description: "Please provide both date and time.",
+                    variant: "destructive"
+                  })
+                  return
+                }
+                toast({
+                  title: "Appointment Scheduled",
+                  description: `Appointment scheduled for ${new Date(scheduleDate).toLocaleDateString()} at ${scheduleTime}`,
+                })
+                setShowScheduleModal(false)
+                setScheduleDate('')
+                setScheduleTime('')
+                setScheduleReason('')
+              }}
+            >
+              Schedule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

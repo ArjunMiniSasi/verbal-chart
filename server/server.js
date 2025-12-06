@@ -248,14 +248,84 @@ async function ingestPlumbDataToFirestore() {
 
 /**
  * Search Plumb data specifically for treatment/drug information
- * Uses local plumb_embeddings.json file instead of Firebase
+ * Uses Firebase Firestore if available, falls back to local JSON file
  * Returns top-k relevant chunks from Plumb drug handbook
  */
 async function searchPlumbData(query, k = 5) {
   try {
-    // Check if Plumb data file exists
+    // Embed the query first
+    console.log(`🔍 [PLUMB RAG DEBUG] Generating query embedding for: "${query.substring(0, 100)}..."`);
+    const embResp = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: query
+    });
+    const qEmb = embResp.data[0].embedding;
+    console.log(`🔍 [PLUMB RAG DEBUG] Query embedding generated: ${qEmb.length} dimensions`);
+    
+    // Try Firebase first if available
+    if (adminDb) {
+      try {
+        console.log(`🔍 [PLUMB RAG DEBUG] Searching Plumb data from Firebase...`);
+        
+        // Query Plumb chunks from Firestore
+        const plumbQuery = adminDb.collection('medora_chunks')
+          .where('meta.source', '==', 'plumb')
+          .limit(1000); // Limit for performance
+        
+        const snapshot = await plumbQuery.get();
+        
+        if (snapshot.empty) {
+          console.warn('⚠️ No Plumb data found in Firebase. Falling back to local file or ingesting data.');
+          // Fall through to local file check
+        } else {
+          console.log(`🔍 [PLUMB RAG DEBUG] Found ${snapshot.size} Plumb chunks in Firebase`);
+          
+          const candidates = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            if (!data || !data.embedding || !data.content) return;
+            
+            let emb = data.embedding;
+            // Handle dimension mismatch
+            if (emb.length !== qEmb.length) {
+              if (emb.length > qEmb.length) emb = emb.slice(0, qEmb.length);
+              else emb = emb.concat(new Array(qEmb.length - emb.length).fill(0));
+            }
+            
+            const sim = cosineSimilarity(qEmb, emb);
+            candidates.push({
+              id: doc.id,
+              chunk_id: data.chunk_id || doc.id,
+              content: data.content,
+              doc_id: data.doc_id || 'plumb_drug_handbook',
+              similarity: sim
+            });
+          });
+          
+          console.log(`🔍 [PLUMB RAG DEBUG] Calculated similarity for ${candidates.length} Plumb chunks from Firebase`);
+          
+          // Sort by similarity and return top-k
+          candidates.sort((a, b) => b.similarity - a.similarity);
+          const topK = candidates.slice(0, k);
+          console.log(`📖 [PLUMB RAG DEBUG] Top ${topK.length} Plumb references selected from Firebase:`);
+          topK.forEach((ref, idx) => {
+            console.log(`   ${idx + 1}. Similarity: ${ref.similarity.toFixed(4)} | Chunk ID: ${ref.chunk_id} | Preview: "${ref.content.substring(0, 80)}..."`);
+          });
+          console.log(`📖 Found ${topK.length} relevant Plumb references from Firebase (top similarity: ${topK[0]?.similarity?.toFixed(3) || 0})`);
+          return topK;
+        }
+      } catch (firebaseErr) {
+        console.warn('⚠️ Error querying Firebase for Plumb data, falling back to local file:', firebaseErr.message);
+        // Fall through to local file check
+      }
+    }
+    
+    // Fallback to local JSON file
+    console.log(`🔍 [PLUMB RAG DEBUG] Falling back to local JSON file...`);
+    
     if (!fs.existsSync(PLUMB_DATA_PATH)) {
       console.warn('⚠️ Plumb data file not found at', PLUMB_DATA_PATH);
+      console.warn('💡 Tip: Use /api/ingest-plumb-data to upload embeddings to Firebase, or process PDF via /api/process-plumb-pdf');
       return [];
     }
 
@@ -293,19 +363,8 @@ async function searchPlumbData(query, k = 5) {
       embeddings.splice(minLength);
     }
 
-    console.log(`🔍 [PLUMB RAG DEBUG] Searching ${chunks.length} Plumb chunks locally...`);
+    console.log(`🔍 [PLUMB RAG DEBUG] Searching ${chunks.length} Plumb chunks from local file...`);
     console.log(`🔍 [PLUMB RAG DEBUG] Loaded ${embeddings.length} Plumb embeddings from JSON file`);
-    console.log(`🔍 [PLUMB RAG DEBUG] Sample chunk preview: "${chunks[0]?.substring(0, 100)}..."`);
-    console.log(`🔍 [PLUMB RAG DEBUG] Sample embedding dimensions: ${embeddings[0]?.length || 'N/A'}`);
-
-    // Embed the query
-    console.log(`🔍 [PLUMB RAG DEBUG] Generating query embedding for: "${query.substring(0, 100)}..."`);
-    const embResp = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: query
-    });
-    const qEmb = embResp.data[0].embedding;
-    console.log(`🔍 [PLUMB RAG DEBUG] Query embedding generated: ${qEmb.length} dimensions`);
     
     // Calculate similarity for all chunks (or sample if too many)
     const MAX_CHUNKS_TO_SEARCH = 1000; // Limit search to first 1000 chunks for performance
@@ -342,7 +401,7 @@ async function searchPlumbData(query, k = 5) {
     topK.forEach((ref, idx) => {
       console.log(`   ${idx + 1}. Similarity: ${ref.similarity.toFixed(4)} | Chunk ID: ${ref.chunk_id} | Preview: "${ref.content.substring(0, 80)}..."`);
     });
-    console.log(`📖 Found ${topK.length} relevant Plumb references (top similarity: ${topK[0]?.similarity?.toFixed(3) || 0})`);
+    console.log(`📖 Found ${topK.length} relevant Plumb references from local file (top similarity: ${topK[0]?.similarity?.toFixed(3) || 0})`);
     return topK;
   } catch (err) {
     console.error('Error searching Plumb data:', err);
@@ -1010,7 +1069,11 @@ app.post('/api/generate-plan', async (req, res) => {
 SEARCH RESULTS:
 (No Plumb references available - using general veterinary knowledge)
 
-Create a brief treatment plan:
+Create a brief treatment plan with the following sections:
+
+*Diagnosis:*
+- Include the diagnosis if applicable based on the assessment and symptoms
+- If diagnosis is not clear or not applicable, write "Not applicable"
 
 *Plan:*
 - 3-4 medications with dosages (mg/kg) and frequency
@@ -1055,7 +1118,11 @@ SEARCH RESULTS:
 
 ${plumbContext}
 
-Create a brief treatment plan:
+Create a brief treatment plan with the following sections:
++
+*Diagnosis:*
+- Include the diagnosis if applicable based on the assessment and symptoms
+- If diagnosis is not clear or not applicable, write "Not applicable"
 
 *Plan:*
 - 3-4 medications with dosages (mg/kg) and frequency
@@ -1186,6 +1253,330 @@ function parseSOAPFromText(text) {
   for (const k of Object.keys(sections)) sections[k] = sections[k].trim();
   return sections;
 }
+
+// ----------------------- Grounding pipeline helpers & endpoint -----------------------
+// Add after existing helpers (e.g., chunkText, processLocalPdfDirectory, parseSOAPFromText)
+
+//
+// Prompt templates for grounding
+//
+function evidenceExtractionPrompt(transcript) {
+  return `
+You are a precise veterinary evidence extractor. Read the transcript below and extract every clinician- or owner-reported
+clinical fact that could be relevant to a SOAP note. 
+
+IMPORTANT: You must respond with ONLY valid JSON, no markdown, no code fences, no explanatory text.
+
+Output a JSON object with an "evidence" array. Each evidence item must include:
+- "type": one of ["symptom","finding","history","exposure","medication","other"]
+- "normalized": a short normalized key (e.g., "vomiting", "dehydration", "plant_ingestion")
+- "quote": the exact short quoted text (1-2 lines) from the transcript supporting this fact
+- "line_index": an integer sentence index (0-based) if available (optional)
+
+Only include facts actually present in the transcript. Do not infer, do not add background info.
+
+Transcript:
+"""${transcript}"""
+
+Respond with ONLY the JSON object, starting with { and ending with }.
+ `.trim();
+}
+
+function soapFromEvidencePrompt(evidenceJson) {
+  return `
+You are a veterinary medical scribe. Using ONLY the evidence array provided below, create a concise SOAP note in JSON.
+
+IMPORTANT: You must respond with ONLY valid JSON, no markdown, no code fences, no explanatory text.
+
+Create a JSON object with keys: "subjective", "objective", "assessment", "plan".
+Rules:
+- Use only information present in the evidence list.
+- Do not invent symptoms, exam findings, or treatments.
+- Assessment should include a short ranked differential if the evidence allows it.
+- Plan should include diagnostics, medications (only when supported by evidence and Plumb references), and follow-up.
+
+Evidence:
+${JSON.stringify(evidenceJson, null, 2)}
+
+Respond with ONLY the JSON object, starting with { and ending with }.
+ `.trim();
+}
+
+function verifierPrompt(transcript, evidenceJson, soapJson) {
+  return `
+You are a verifier. We have:
+1) A transcript
+2) A structured evidence list (JSON)
+3) A drafted SOAP note (JSON)
+
+IMPORTANT: You must respond with ONLY valid JSON, no markdown, no code fences, no explanatory text.
+
+For each claim in the SOAP (subjective, objective, assessment, plan), match it to at least one evidence item from the evidence list.
+Return a JSON object with this structure:
+{
+  "valid": { "subjective": [...], "objective": [...], "assessment": [...], "plan": [...] },
+  "invalid": { "subjective": [...], "objective": [...], "assessment": [...], "plan": [...] }
+}
+Each item in arrays should include the claim text and either the matched evidence index or a short reason why it is invalid.
+
+Transcript:
+"""${transcript}"""
+Evidence:
+${JSON.stringify(evidenceJson, null, 2)}
+SOAP:
+${JSON.stringify(soapJson, null, 2)}
+
+Respond with ONLY the JSON object, starting with { and ending with }.
+ `.trim();
+}
+
+//
+// Simple deterministic rule validator (symptom -> block med rules etc.)
+//
+function ruleValidate(evidence) {
+  const normalized = (evidence || []).map(e => e.normalized && String(e.normalized).toLowerCase());
+  const flags = { blockedMeds: [], notes: [] };
+
+  // Example: block diarrhea-only meds if no diarrhea evidence
+  if (!normalized.includes('diarrhea')) {
+    flags.blockedMeds.push('kaolin_pectin');
+    flags.notes.push('No diarrhea evidence — blocking diarrhea-only meds.');
+  }
+
+  // Example: prefer antiemetic when vomiting present
+  if (normalized.includes('vomiting')) {
+    flags.notes.push('Vomiting evidence found — recommend antiemetic + hydration.');
+  }
+
+  return flags;
+}
+
+//
+// Medication checker that uses local Plumb embeddings search + simple species check
+// (re-uses your searchPlumbData function to find plumb references)
+//
+async function medChecker(planText, meta = {}) {
+  // naive med extraction: look for some common med names or plumb matches
+  const warnings = [];
+  const meds = [];
+
+  // quick check for explicit med names (very small list — expand with your Plumb DB)
+  const knownMeds = ['maropitant','famotidine','amoxicillin','metronidazole','kaolin','pectin','prochlorperazine'];
+  const low = (planText || '').toLowerCase();
+
+  for (const m of knownMeds) {
+    if (low.includes(m)) meds.push(m);
+  }
+
+  // For each med, check Plumb context
+  for (const med of meds) {
+    // run a small Plumb search for the med name to validate species compatibility
+    try {
+      const refs = await searchPlumbData(med, 3);
+      if (refs.length === 0) {
+        warnings.push({ med, reason: 'No Plumb reference found for this medication' });
+      } else {
+        // naive species check: look for species string in ref content
+        if (meta.species && !refs.some(r => (r.content || '').toLowerCase().includes(meta.species.toLowerCase()))) {
+          warnings.push({ med, reason: `Plumb references do not explicitly mention species ${meta.species}` });
+        }
+      }
+    } catch (err) {
+      warnings.push({ med, reason: `Plumb search error: ${err.message}` });
+    }
+  }
+
+  return { meds, warnings };
+}
+
+//
+// Small wrapper for calling your existing openai chat completion (keeps temp low)
+//
+async function callLLMChat(prompt, opts = {}) {
+  const model = opts.model || 'gpt-4o-mini';
+  const temperature = typeof opts.temperature === 'number' ? opts.temperature : 0.0;
+  const max_tokens = opts.max_tokens || 800;
+  const messages = [
+    { role: 'system', content: 'You are a helpful assistant that responds with valid JSON only. Do not use markdown code fences, do not add explanatory text. Return only the JSON object.' },
+    { role: 'user', content: prompt }
+  ];
+  const resp = await openai.chat.completions.create({
+    model,
+    messages,
+    temperature,
+    max_tokens
+  });
+  return (resp.choices && resp.choices[0] && (resp.choices[0].message?.content || resp.choices[0].text)) || '';
+}
+
+//
+// Endpoint: grounded-note
+// Orchestrates: evidence extraction -> SOAP-from-evidence -> verifier -> rule check -> med check
+//
+app.post('/api/grounded-note', async (req, res) => {
+  const { transcript, meta = {} } = req.body || {};
+  if (!transcript || typeof transcript !== 'string') {
+    return res.status(400).json({ error: 'transcript (string) required' });
+  }
+
+  const requestId = `ground__${Date.now()}`;
+  const audit = { id: requestId, createdAt: new Date().toISOString(), transcript: transcript.slice(0,1000), meta, steps: {} };
+
+  try {
+    // 1) Evidence extraction
+    const evPrompt = evidenceExtractionPrompt(transcript);
+    const evRaw = await callLLMChat(evPrompt, { max_tokens: 800 });
+    let evidenceJson = { evidence: [] };
+    try {
+      // Try to parse directly first
+      evidenceJson = JSON.parse(evRaw);
+    } catch (e) {
+      // Strip markdown code fences if present
+      let cleaned = evRaw.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+      try {
+        evidenceJson = JSON.parse(cleaned);
+      } catch (e2) {
+        // Try to extract JSON object from the response
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            evidenceJson = JSON.parse(jsonMatch[0]);
+          } catch (e3) {
+            console.error('Failed to parse evidence JSON:', evRaw.substring(0, 200));
+            throw new Error('Evidence extractor returned non-JSON response: ' + e3.message);
+          }
+        } else {
+          console.error('No JSON found in evidence response:', evRaw.substring(0, 200));
+          throw new Error('Evidence extractor returned non-JSON response: no JSON object found');
+        }
+      }
+    }
+    // normalize missing normalized keys
+    evidenceJson.evidence = (evidenceJson.evidence || []).map((it, idx) => {
+      if (!it.normalized) {
+        const norm = (it.quote || it.type || `e${idx}`).toLowerCase().replace(/[^a-z0-9]+/g,'_').slice(0,40);
+        it.normalized = norm;
+      }
+      return it;
+    });
+    audit.steps.evidenceCount = evidenceJson.evidence.length;
+
+    // 2) Rule-based pre-check
+    const ruleFlags = ruleValidate(evidenceJson.evidence);
+    audit.steps.ruleFlags = ruleFlags;
+
+    // 3) Generate SOAP from evidence ONLY
+    const soapPrompt = soapFromEvidencePrompt(evidenceJson.evidence);
+    const soapRaw = await callLLMChat(soapPrompt, { max_tokens: 1000 });
+    let soapJson = {};
+    try {
+      soapJson = JSON.parse(soapRaw);
+    } catch (e) {
+      // Strip markdown code fences if present
+      let cleaned = soapRaw.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+      try {
+        soapJson = JSON.parse(cleaned);
+      } catch (e2) {
+        const m = cleaned.match(/\{[\s\S]*\}/);
+        if (m) {
+          try {
+            soapJson = JSON.parse(m[0]);
+          } catch (e3) {
+            console.error('Failed to parse SOAP JSON:', soapRaw.substring(0, 200));
+            throw new Error('SOAP generator returned non-JSON response: ' + e3.message);
+          }
+        } else {
+          console.error('No JSON found in SOAP response:', soapRaw.substring(0, 200));
+          throw new Error('SOAP generator returned non-JSON response: no JSON object found');
+        }
+      }
+    }
+    audit.steps.soapDraft = soapJson;
+
+    // 4) Verifier: ensure each SOAP claim maps to evidence
+    const verPrompt = verifierPrompt(transcript, evidenceJson, soapJson);
+    const verRaw = await callLLMChat(verPrompt, { max_tokens: 800 });
+    let verJson = {};
+    try {
+      verJson = JSON.parse(verRaw);
+    } catch (e) {
+      // Strip markdown code fences if present
+      let cleaned = verRaw.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+      try {
+        verJson = JSON.parse(cleaned);
+      } catch (e2) {
+        const m = cleaned.match(/\{[\s\S]*\}/);
+        if (m) {
+          try {
+            verJson = JSON.parse(m[0]);
+          } catch (e3) {
+            console.error('Failed to parse verifier JSON:', verRaw.substring(0, 200));
+            throw new Error('Verifier returned non-JSON response: ' + e3.message);
+          }
+        } else {
+          console.error('No JSON found in verifier response:', verRaw.substring(0, 200));
+          throw new Error('Verifier returned non-JSON response: no JSON object found');
+        }
+      }
+    }
+    audit.steps.verifier = verJson;
+
+    // If invalid claims exist, return review_required with cleaned soap and invalid list
+    const invalidCount = Object.values(verJson.invalid || {}).reduce((acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0), 0);
+    if (invalidCount > 0) {
+      // attach evidence references to the SOAP draft and return review_required
+      audit.steps.invalid = verJson.invalid;
+      return res.status(200).json({
+        id: requestId,
+        status: 'review_required',
+        reason: 'One or more SOAP claims could not be grounded in transcript evidence.',
+        verifier: verJson,
+        soapDraft: soapJson,
+        evidence: evidenceJson
+      });
+    }
+
+    // 5) Medication check on plan text (if any)
+    const planText = typeof soapJson.plan === 'string' ? soapJson.plan : JSON.stringify(soapJson.plan || {});
+    const medCheck = await medChecker(planText, meta);
+    audit.steps.medCheck = medCheck;
+
+    if (medCheck.warnings && medCheck.warnings.length) {
+      return res.status(200).json({
+        id: requestId,
+        status: 'med_review_required',
+        reason: 'Medication warnings detected',
+        medWarnings: medCheck.warnings,
+        soap: soapJson,
+        evidence: evidenceJson
+      });
+    }
+
+    // 6) Final: return grounded SOAP + evidence + audit pointer
+    audit.steps.final = { status: 'ok' };
+    // optionally persist audit to disk (small)
+    try {
+      const AUDIT_DIR = path.resolve(__dirname, 'audit_grounding');
+      if (!fs.existsSync(AUDIT_DIR)) fs.mkdirSync(AUDIT_DIR);
+      fs.writeFileSync(path.join(AUDIT_DIR, `${requestId}.json`), JSON.stringify(audit, null, 2));
+    } catch (e) {
+      console.warn('Failed to write grounding audit:', e.message || e);
+    }
+
+    return res.json({
+      id: requestId,
+      status: 'ok',
+      soap: soapJson,
+      evidence: evidenceJson,
+      medCheck
+    });
+
+  } catch (err) {
+    console.error('grounded-note error', err);
+    return res.status(500).json({ error: 'grounded-note failed', message: err.message || String(err) });
+  }
+});
+
 
 // ------------- Error middleware -------------
 app.use((err, req, res, next) => {

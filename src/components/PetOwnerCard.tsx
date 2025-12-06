@@ -116,7 +116,7 @@ const PetOwnerCard = ({ pet, owner, lastVisit }: PetOwnerCardProps) => {
             <div className="flex items-center gap-2">
               <Weight className="h-4 w-4 text-green-600" />
               <div>
-                <p className="text-sm font-medium text-gray-900">{pet.weight} lbs</p>
+                <p className="text-sm font-medium text-gray-900">{Math.round(pet.weight * 2.20462)} lbs</p>
                 <p className="text-xs text-gray-500">Weight</p>
               </div>
             </div>
@@ -249,7 +249,7 @@ const PetOwnerCard = ({ pet, owner, lastVisit }: PetOwnerCardProps) => {
                         <div className="flex items-center gap-2">
                           <Weight className="h-4 w-4 text-green-600" />
                           <div>
-                            <p className="text-sm font-medium text-gray-900">{pet.weight} lbs</p>
+                            <p className="text-sm font-medium text-gray-900">{Math.round(pet.weight * 2.20462)} lbs</p>
                             <p className="text-xs text-gray-500">Weight</p>
                           </div>
                         </div>

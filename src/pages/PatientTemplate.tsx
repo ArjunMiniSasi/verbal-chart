@@ -4,6 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { 
   ArrowLeft,
   Mic, 
@@ -24,6 +28,7 @@ import { SOAPEditor } from "@/components/SOAPEditor"
 import { CaseSummary } from "@/components/CaseSummary"
 import MedicalHistory from "@/components/MedicalHistory"
 import PetOwnerCard from "@/components/PetOwnerCard"
+import { PreviewModal } from "@/components/PreviewModal"
 import { useMedoraStore } from "@/stores/medoraStore"
 import { useToast } from "@/hooks/use-toast"
 import { Patient, mockPatients, mockHistoryRecords } from "@/mocks/seeds"
@@ -32,11 +37,18 @@ const PatientTemplate = () => {
   const { patientId } = useParams<{ patientId: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { currentPatient, setCurrentPatient, transcript, soapNote } = useMedoraStore()
+  const { currentPatient, setCurrentPatient, transcript, soapNote, clearSOAPNote, clearTranscript, updateSOAPNote } = useMedoraStore()
   
   const [isRecording, setIsRecording] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [patientData, setPatientData] = useState<Patient | null>(null)
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false)
+  const [scheduleDate, setScheduleDate] = useState('')
+  const [scheduleTime, setScheduleTime] = useState('')
+  const [scheduleReason, setScheduleReason] = useState('')
+  const [followUpDate, setFollowUpDate] = useState('')
+  const [followUpReason, setFollowUpReason] = useState('')
 
   // Fetch patient data based on patientId
   useEffect(() => {
@@ -44,55 +56,69 @@ const PatientTemplate = () => {
     const storedPatientData = sessionStorage.getItem('newPatientData')
     
     if (storedPatientData) {
-      // Use the data from the form (enhanced with pet information)
-      const formData = JSON.parse(storedPatientData)
-      const newPatient: Patient = {
-        id: patientId || 'new',
-        name: formData.petName || 'New Pet',
-        age: parseInt(formData.petAge) || 0,
-        mrn: `MRN${patientId}`,
-        lastVisit: new Date().toISOString().split('T')[0],
-        pet: {
-          name: formData.petName || 'New Pet',
-          species: formData.species || 'Dog',
-          breed: formData.breed || 'Mixed Breed',
-          age: parseInt(formData.petAge) || 0,
-          gender: (formData.petGender === 'Female' ? 'Female' : 'Male') as 'Male' | 'Female',
-          weight: parseInt(formData.weight) || 0,
-          color: formData.color || 'Unknown',
-          microchipId: formData.microchipId || undefined,
-          imageUrl: formData.imageUrl || undefined,
-          vaccinations: formData.vaccinations || [],
-          medicalHistory: formData.medicalHistory || 'No previous medical history recorded',
-          allergies: formData.allergies || ['None known'],
-          lastConsultedDoctor: formData.lastDoctor || undefined,
-          temperament: formData.temperament || 'Friendly and social',
-          dietaryNeeds: formData.dietaryNeeds || 'Standard diet'
-        },
-        owner: {
-          name: formData.ownerName || 'Unknown Owner',
-          phone: formData.ownerPhone || '(555) 000-0000',
-          email: formData.ownerEmail || 'owner@email.com',
-          address: {
-            street: formData.address || '123 Main Street',
-            city: formData.city || 'Springfield',
-            state: formData.state || 'IL',
-            zipCode: formData.zipCode || '62701'
-          },
-          occupation: formData.occupation || 'Professional',
-          emergencyContact: {
-            name: formData.emergencyContact || 'Emergency Contact',
-            phone: formData.emergencyPhone || '(555) 000-0001',
-            relationship: formData.emergencyRelationship || 'Family Member'
+      try {
+        // The AddPatientModal now creates a properly structured Patient object
+        const newPatient: Patient = JSON.parse(storedPatientData)
+        
+        // Ensure the patient ID matches the URL parameter
+        if (patientId && newPatient.id !== patientId) {
+          newPatient.id = patientId
+        }
+        
+        // Ensure MRN is set if not provided
+        if (!newPatient.mrn) {
+          newPatient.mrn = newPatient.id.startsWith('MRN') ? newPatient.id : `MRN${newPatient.id}`
+        }
+        
+        // Ensure lastVisit is set
+        if (!newPatient.lastVisit) {
+          newPatient.lastVisit = new Date().toISOString().split('T')[0]
+        }
+        
+        // Ensure pet has required fields with defaults
+        if (!newPatient.pet.vaccinations) {
+          newPatient.pet.vaccinations = []
+        }
+        if (!newPatient.pet.allergies || newPatient.pet.allergies.length === 0) {
+          newPatient.pet.allergies = ['None known']
+        }
+        if (!newPatient.pet.medicalHistory) {
+          newPatient.pet.medicalHistory = 'No previous medical history recorded'
+        }
+        
+        // Ensure owner address is complete
+        if (!newPatient.owner.address) {
+          newPatient.owner.address = {
+            street: '',
+            city: '',
+            state: '',
+            zipCode: ''
           }
         }
+        
+        // Ensure emergency contact is set
+        if (!newPatient.owner.emergencyContact) {
+          newPatient.owner.emergencyContact = {
+            name: '',
+            phone: '',
+            relationship: ''
+          }
+        }
+        
+        console.log('✅ Loaded new patient data:', newPatient)
+        setPatientData(newPatient)
+        setCurrentPatient(newPatient)
+        
+        // Clear the stored data after using it
+        sessionStorage.removeItem('newPatientData')
+      } catch (error) {
+        console.error('Error parsing patient data from sessionStorage:', error)
+        // Fall through to mock data
+        const patientIndex = parseInt(patientId || '1') % mockPatients.length
+        const selectedPatient = mockPatients[patientIndex] || mockPatients[0]
+        setPatientData(selectedPatient)
+        setCurrentPatient(selectedPatient)
       }
-      
-      setPatientData(newPatient)
-      setCurrentPatient(newPatient)
-      
-      // Clear the stored data after using it
-      sessionStorage.removeItem('newPatientData')
     } else {
       // Use mock data based on patientId
       const patientIndex = parseInt(patientId || '1') % mockPatients.length
@@ -179,7 +205,7 @@ const PatientTemplate = () => {
                       {patientData.pet.gender}
                     </Badge>
                     <Badge variant="secondary" className="ml-2">
-                      {patientData.pet.weight} lbs
+                      {Math.round(patientData.pet.weight * 2.20462)} lbs
                     </Badge>
                   </div>
                 </div>
@@ -221,11 +247,45 @@ const PatientTemplate = () => {
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium text-muted-foreground">Medical Actions</h4>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" size="sm" className="gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-2"
+                      onClick={() => {
+                        clearSOAPNote()
+                        clearTranscript()
+                        toast({
+                          title: "New SOAP Note",
+                          description: "SOAP note and transcript cleared. Ready for new entry.",
+                        })
+                      }}
+                    >
                       <FileText className="h-4 w-4" />
                       New SOAP
                     </Button>
-                    <Button variant="outline" size="sm" className="gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-2"
+                      onClick={() => {
+                        // Scroll to SOAP tab and focus on Objective section
+                        const soapTab = document.querySelector('[value="soap"]')
+                        if (soapTab) {
+                          (soapTab as HTMLElement).click()
+                          setTimeout(() => {
+                            const objectiveTextarea = document.querySelector('textarea[placeholder*="Physical examination"]') as HTMLTextAreaElement
+                            if (objectiveTextarea) {
+                              objectiveTextarea.focus()
+                              objectiveTextarea.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                            }
+                          }, 100)
+                        }
+                        toast({
+                          title: "Exam Section",
+                          description: "Navigate to Objective section for exam findings.",
+                        })
+                      }}
+                    >
                       <Stethoscope className="h-4 w-4" />
                       Exam
                     </Button>
@@ -235,11 +295,21 @@ const PatientTemplate = () => {
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium text-muted-foreground">Scheduling</h4>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" size="sm" className="gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-2"
+                      onClick={() => setShowScheduleModal(true)}
+                    >
                       <Calendar className="h-4 w-4" />
                       Schedule
                     </Button>
-                    <Button variant="outline" size="sm" className="gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-2"
+                      onClick={() => setShowFollowUpModal(true)}
+                    >
                       <Clock className="h-4 w-4" />
                       Follow-up
                     </Button>
@@ -327,6 +397,161 @@ const PatientTemplate = () => {
           </div>
         </div>
       </div>
+
+      {/* Schedule Modal */}
+      <Dialog open={showScheduleModal} onOpenChange={setShowScheduleModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Schedule Appointment
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="schedule-date">Date</Label>
+              <Input
+                id="schedule-date"
+                type="date"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="schedule-time">Time</Label>
+              <Input
+                id="schedule-time"
+                type="time"
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="schedule-reason">Reason</Label>
+              <Textarea
+                id="schedule-reason"
+                placeholder="Enter reason for appointment..."
+                value={scheduleReason}
+                onChange={(e) => setScheduleReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowScheduleModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!scheduleDate || !scheduleTime) {
+                  toast({
+                    title: "Missing Information",
+                    description: "Please provide both date and time.",
+                    variant: "destructive"
+                  })
+                  return
+                }
+                toast({
+                  title: "Appointment Scheduled",
+                  description: `Appointment scheduled for ${new Date(scheduleDate).toLocaleDateString()} at ${scheduleTime}`,
+                })
+                setShowScheduleModal(false)
+                setScheduleDate('')
+                setScheduleTime('')
+                setScheduleReason('')
+              }}
+            >
+              Schedule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Follow-up Modal */}
+      <Dialog open={showFollowUpModal} onOpenChange={setShowFollowUpModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Schedule Follow-up
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="followup-date">Follow-up Date</Label>
+              <Input
+                id="followup-date"
+                type="date"
+                value={followUpDate}
+                onChange={(e) => setFollowUpDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="followup-reason">Reason / Instructions</Label>
+              <Textarea
+                id="followup-reason"
+                placeholder="Enter follow-up instructions or reason..."
+                value={followUpReason}
+                onChange={(e) => setFollowUpReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFollowUpModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!followUpDate) {
+                  toast({
+                    title: "Missing Information",
+                    description: "Please provide a follow-up date.",
+                    variant: "destructive"
+                  })
+                  return
+                }
+                
+                // Update the plan's follow-up section if there's a plan
+                if (soapNote.plan) {
+                  const planText = soapNote.plan
+                  const followUpText = followUpReason || `Recheck on ${new Date(followUpDate).toLocaleDateString()}`
+                  
+                  // Try to update follow-up section in plan
+                  if (planText.includes('Follow-up:')) {
+                    const parts = planText.split(/Follow-up:\s*/i)
+                    if (parts.length > 1) {
+                      const newPlan = parts[0] + `Follow-up: ${followUpText}`
+                      updateSOAPNote('plan', newPlan)
+                    } else {
+                      updateSOAPNote('plan', planText + `\n\nFollow-up: ${followUpText}`)
+                    }
+                  } else {
+                    updateSOAPNote('plan', planText + `\n\nFollow-up: ${followUpText}`)
+                  }
+                } else {
+                  // If no plan exists, create a basic one with follow-up
+                  updateSOAPNote('plan', `Follow-up: ${followUpReason || `Recheck on ${new Date(followUpDate).toLocaleDateString()}`}`)
+                }
+                
+                toast({
+                  title: "Follow-up Scheduled",
+                  description: `Follow-up scheduled for ${new Date(followUpDate).toLocaleDateString()}`,
+                })
+                setShowFollowUpModal(false)
+                setFollowUpDate('')
+                setFollowUpReason('')
+              }}
+            >
+              Schedule Follow-up
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <PreviewModal />
     </div>
   )
 }
