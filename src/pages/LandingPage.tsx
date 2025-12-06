@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Mic, 
@@ -16,306 +16,208 @@ import {
   Pill,
   Cloud,
   Globe,
-  Download,
-  ChevronRight,
-  Quote,
   CheckCircle,
   Volume2,
   PenTool,
-  BarChart3,
-  Sparkles
+  Eye,
+  Smile,
+  ChevronDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const [doctorsCount, setDoctorsCount] = useState(1);
-
-  const monthlySavings = doctorsCount * 20000;
-  const hoursSaved = doctorsCount * 30;
+  const [activeFeature, setActiveFeature] = useState('transcription');
+  const [isVideoPlaying, setIsVideoPlaying] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const handleStartTrial = () => {
     navigate('/dashboard');
   };
 
-  const handleWatchDemo = () => {
-    document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' });
+  const toggleVideoPlay = () => {
+    if (videoRef.current) {
+      if (videoRef.current.paused) {
+        videoRef.current.play();
+        setIsVideoPlaying(true);
+      } else {
+        videoRef.current.pause();
+        setIsVideoPlaying(false);
+      }
+    }
+  };
+
+  const features = {
+    transcription: {
+      title: 'Real-time Voice Transcription',
+      description: 'Advanced speech recognition with 99.8% accuracy for veterinary terminology. Speak naturally while examining pets—AI handles the documentation.',
+      icon: Mic,
+      bgColor: 'bg-blue-100',
+      iconColor: 'text-blue-600'
+    },
+    soap: {
+      title: 'Auto SOAP Notes Generation',
+      description: 'AI converts your conversations into structured SOAP format instantly. Perfect veterinary records without the typing stress.',
+      icon: FileText,
+      bgColor: 'bg-green-100',
+      iconColor: 'text-green-600'
+    },
+    prescriptions: {
+      title: 'Smart Prescriptions',
+      description: 'Complete prescriptions with dosage, frequency, and follow-up plans generated automatically from your voice notes.',
+      icon: Pill,
+      bgColor: 'bg-purple-100',
+      iconColor: 'text-purple-600'
+    }
   };
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero Section */}
-      <section className="relative min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-32 h-32 bg-white rounded-full"></div>
-          <div className="absolute top-40 right-40 w-24 h-24 bg-white rounded-full"></div>
-          <div className="absolute bottom-32 left-32 w-40 h-40 bg-white rounded-full"></div>
-        </div>
+      {/* Navigation Bar */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <Heart className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-xl font-bold text-gray-900">Medora AI</span>
+            </div>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center min-h-screen">
-            {/* Left Content */}
-            <div className="text-white">
-              {/* Trust Badge */}
-              <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 mb-8">
-                <Shield className="w-4 h-4" />
-                <span className="text-sm font-medium">Trusted by 1,000+ Veterinary Clinics</span>
+            {/* Navigation Links */}
+            <div className="hidden md:flex items-center gap-8">
+              <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors text-sm">Features</a>
+              <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors text-sm">Pricing</a>
+              <a href="#resources" className="text-gray-600 hover:text-gray-900 transition-colors text-sm">Resources</a>
+              <a href="#about" className="text-gray-600 hover:text-gray-900 transition-colors text-sm">About</a>
+            </div>
+
+            {/* CTA Buttons */}
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" className="text-gray-600 hover:text-gray-900">
+                Log in
+              </Button>
+              <Button
+                onClick={handleStartTrial}
+                className="bg-gray-900 hover:bg-gray-800 text-white px-4"
+              >
+                Sign up
+              </Button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Badge */}
+          <div className="text-center mb-6">
+            <Badge className="bg-green-50 text-green-600 border-green-200 px-3 py-1 text-xs font-medium">
+              <span className="w-2 h-2 bg-green-500 rounded-full inline-block mr-2 animate-pulse"></span>
+              Trusted by 1,000+ Veterinary Clinics
+            </Badge>
               </div>
 
               {/* Main Headline */}
-              <h1 className="text-5xl lg:text-6xl xl:text-7xl font-bold mb-6 leading-tight">
-                Focus on Caring,
+          <div className="text-center max-w-4xl mx-auto mb-8">
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
+              AI-powered SOAP notes
                 <br />
-                <span className="bg-gradient-to-r from-blue-300 to-white bg-clip-text text-transparent">
-                  Not Typing
-                </span>
+              <span className="text-blue-600">for modern veterinary care</span>
               </h1>
-
-              {/* Subheading */}
-              <p className="text-xl text-blue-100 mb-8 leading-relaxed max-w-lg">
-                Let AI handle your documentation while you focus on what you do best—caring for your patients. VoiceScribe.AI transforms your conversations into perfect SOAP notes instantly.
-              </p>
-
-              {/* Key Benefits */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-200">30</div>
-                  <div className="text-blue-100 text-sm">Hours Saved/Month</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-200">99.8%</div>
-                  <div className="text-blue-100 text-sm">Accuracy Rate</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-200">₹20K</div>
-                  <div className="text-blue-100 text-sm">Extra Revenue</div>
-                </div>
+            <p className="text-xl md:text-2xl text-gray-600 mb-6 leading-relaxed">
+              Transform consultations into complete veterinary documentation in seconds.
+            </p>
+            
+            {/* Metrics That Move Forward */}
+            <div className="mb-8">
+              <p className="text-sm font-semibold text-gray-500 mb-4 uppercase tracking-wide">Metrics That Move Forward</p>
+              <div className="flex flex-wrap justify-center gap-3">
+                <Badge className="bg-blue-100 text-blue-700 border-blue-300 px-4 py-2 text-sm font-medium hover:bg-blue-200 transition-colors cursor-pointer">
+                  <Eye className="w-4 h-4 inline mr-2" />
+                  Accuracy
+                </Badge>
+                <Badge className="bg-green-100 text-green-700 border-green-300 px-4 py-2 text-sm font-medium hover:bg-green-200 transition-colors cursor-pointer">
+                  <TrendingUp className="w-4 h-4 inline mr-2" />
+                  Speed
+                </Badge>
+                <Badge className="bg-purple-100 text-purple-700 border-purple-300 px-4 py-2 text-sm font-medium hover:bg-purple-200 transition-colors cursor-pointer">
+                  <Smile className="w-4 h-4 inline mr-2" />
+                  Satisfaction
+                </Badge>
+              </div>
               </div>
 
               {/* CTAs */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                 <Button
                   onClick={handleStartTrial}
                   size="lg"
-                  className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-4 text-lg font-semibold shadow-xl hover:shadow-2xl transition-all duration-300"
+                className="bg-gray-900 hover:bg-gray-800 text-white px-8 py-6 text-lg font-semibold shadow-lg"
                 >
-                  Start Free Trial
+                Start free trial
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
-                
               <Button
-                onClick={handleWatchDemo}
                 variant="outline"
                 size="lg"
-                className="border-white text-blue-600 hover:bg-white hover:text-blue-600 px-8 py-4 text-lg font-semibold backdrop-blur-sm transition-all duration-300"
+                className="border-2 border-gray-300 bg-white text-black hover:bg-gray-50 hover:text-black px-8 py-6 text-lg font-semibold"
               >
-                <Play className="mr-2 w-5 h-5" />
-                Watch Demo
+                Book a demo
               </Button>
               </div>
-
-              {/* Trust Indicators */}
-              <div className="flex items-center gap-6 text-blue-200">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5" />
-                  <span className="text-sm">Patient-Focused Care</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5" />
-                  <span className="text-sm">Veterinary-Specific AI</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5" />
-                  <span className="text-sm">Start Free Today</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Visual */}
-            <div className="relative">
-              {/* Main Image Container */}
-              <div className="relative bg-white rounded-2xl shadow-2xl p-6">
-                {/* Professional Doctor Image */}
-                <div className="w-full h-[500px] rounded-xl overflow-hidden relative">
-                  <img 
-                    src="/assets/images/veterinarian-check-ing-puppy-s-health.jpg"
-                    alt="Veterinarian checking puppy's health with stethoscope in modern clinic"
-                    className="w-full h-full object-cover"
-                  />
-                  
-                  {/* Overlay for better text readability */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent"></div>
-
-                  {/* AI Status Indicators */}
-                  {/* Writing Status */}
-                  <div className="absolute top-6 right-6 bg-white/95 backdrop-blur-sm border-2 border-green-300 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg">
-                    <PenTool className="w-4 h-4 text-green-600" />
-                    <span className="text-sm font-semibold text-green-800">Writing...</span>
-                  </div>
-
-                  {/* Listening Status */}
-                  <div className="absolute top-20 right-6 bg-white/95 backdrop-blur-sm border-2 border-red-300 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg">
-                    <Volume2 className="w-4 h-4 text-red-600" />
-                    <span className="text-sm font-semibold text-red-800">Listening...</span>
-                  </div>
-
-                  {/* Success Checkmark */}
-                  <div className="absolute top-12 left-6 w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center shadow-lg">
-                    <CheckCircle className="w-6 h-6 text-white" />
-                  </div>
-
-                  {/* Bottom overlay for stats */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white/95 to-transparent p-6">
-                    <div className="flex justify-between items-center">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">1,247</div>
-                        <div className="text-sm text-gray-600">Records Completed</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">8,432</div>
-                        <div className="text-sm text-gray-600">Hours Saved</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">99.8%</div>
-                        <div className="text-sm text-gray-600">Accuracy</div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
-                {/* Floating Stats Cards - Repositioned */}
-                {/* Records Completed */}
-                <div className="absolute -top-3 -left-3 bg-white rounded-lg shadow-lg p-3 border-2 border-gray-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <FileText className="w-4 h-4 text-blue-500" />
-                    <span className="text-xs font-semibold text-gray-800">Records</span>
-                  </div>
-                  <div className="text-lg font-bold text-gray-900">1,247</div>
-                  <div className="flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3 text-green-500" />
-                    <span className="text-xs text-green-600">+18%</span>
-                  </div>
-                </div>
-
-                {/* Hours Saved */}
-                <div className="absolute -bottom-3 -right-3 bg-white rounded-lg shadow-lg p-3 border-2 border-gray-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Clock className="w-4 h-4 text-orange-500" />
-                    <span className="text-xs font-semibold text-gray-800">Hours</span>
-                  </div>
-                  <div className="text-lg font-bold text-gray-900">8,432</div>
-                  <div className="flex items-center gap-1">
-                    <BarChart3 className="w-3 h-3 text-green-500" />
-                    <span className="text-xs text-green-600">+24%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Problem & Solution Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            {/* Problem Side */}
-            <div>
-              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-                Love Your Patients,
-                <br />
-                <span className="text-red-500">Hate the Paperwork?</span>
-              </h2>
-              <p className="text-xl text-gray-600 mb-8">
-                You became a veterinarian to care for animals, not to spend hours typing notes. Let AI handle the documentation while you focus on what you love.
-              </p>
-              
-              <div className="space-y-6">
-                {[
-                  {
-                    icon: Clock,
-                    title: "Less Time with Patients",
-                    description: "40% of your consultation time is spent on paperwork instead of caring",
-                    color: "text-red-500",
-                    bgColor: "bg-red-50"
-                  },
-                  {
-                    icon: Heart,
-                    title: "Missing the Joy",
-                    description: "Paperwork steals the satisfaction of helping animals and their families",
-                    color: "text-orange-500",
-                    bgColor: "bg-orange-50"
-                  },
-                  {
-                    icon: DollarSign,
-                    title: "Fewer Patients Helped",
-                    description: "Admin work limits how many pets you can care for each day",
-                    color: "text-purple-500",
-                    bgColor: "bg-purple-50"
-                  }
-                ].map((pain, index) => (
-                  <div key={index} className="flex items-start gap-4">
-                    <div className={`w-12 h-12 ${pain.bgColor} rounded-full flex items-center justify-center flex-shrink-0`}>
-                      <pain.icon className={`w-6 h-6 ${pain.color}`} />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">{pain.title}</h3>
-                      <p className="text-gray-600">{pain.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Solution Side */}
-            <div className="relative">
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-8">
-                <h3 className="text-3xl font-bold text-gray-900 mb-6">
-                  Get Back to What You Love
-                </h3>
+          {/* Product Demo - Prominent with Glass Morphism */}
+          <div className="mt-6 max-w-7xl mx-auto">
+            <div className="relative rounded-3xl overflow-hidden shadow-2xl">
+              {/* Glass Morphism Video Container */}
+              <div className="relative w-full aspect-video bg-gradient-to-br from-gray-900 via-gray-800 to-black">
+                {/* Glass morphism overlay */}
+                <div className="absolute inset-0 bg-white/5 backdrop-blur-xl"></div>
                 
-                <div className="space-y-6">
-                  {[
-                    {
-                      icon: Mic,
-                      title: "Just Talk & Care",
-                      description: "Speak naturally while examining pets - AI handles the notes",
-                      color: "text-blue-600"
-                    },
-                    {
-                      icon: Heart,
-                      title: "More Patient Time",
-                      description: "Focus on the animals while AI documents everything",
-                      color: "text-green-600"
-                    },
-                    {
-                      icon: FileText,
-                      title: "Perfect Records",
-                      description: "Accurate SOAP notes without the typing stress",
-                      color: "text-purple-600"
-                    }
-                  ].map((solution, index) => (
-                    <div key={index} className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
-                        <solution.icon className={`w-6 h-6 ${solution.color}`} />
-                      </div>
-                      <div>
-                        <h4 className="text-lg font-semibold text-gray-900 mb-1">{solution.title}</h4>
-                        <p className="text-gray-600">{solution.description}</p>
-                      </div>
+                {/* Video */}
+                <video 
+                  ref={videoRef}
+                  src="/assets/videos/product-demo.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="relative w-full h-full object-contain z-10"
+                  onClick={toggleVideoPlay}
+                  onPlay={() => setIsVideoPlaying(true)}
+                  onPause={() => setIsVideoPlaying(false)}
+                />
+                
+                {/* Glass morphism play overlay */}
+                {!isVideoPlaying && (
+                  <div 
+                    className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm cursor-pointer z-20"
+                    onClick={toggleVideoPlay}
+                  >
+                    <div className="bg-white/90 backdrop-blur-md rounded-full p-6 shadow-2xl border border-white/20 hover:scale-110 transition-transform">
+                      <Play className="w-12 h-12 text-gray-900 ml-1" />
                     </div>
-                  ))}
+                  </div>
+                )}
+
+                {/* Glass morphism corner accents */}
+                <div className="absolute top-4 left-4 bg-white/10 backdrop-blur-md rounded-lg px-3 py-2 border border-white/20 z-30">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-white text-xs font-medium">Live Demo</span>
+                  </div>
                 </div>
 
-                <div className="mt-8 p-6 bg-white rounded-xl shadow-sm">
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-green-600 mb-2">30 Hours</div>
-                    <div className="text-gray-600">More Time with Your Patients</div>
+                <div className="absolute bottom-4 right-4 bg-white/10 backdrop-blur-md rounded-lg px-3 py-2 border border-white/20 z-30">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-white" />
+                    <span className="text-white text-xs font-medium">SOAP Notes</span>
                   </div>
                 </div>
               </div>
@@ -324,85 +226,95 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-20 bg-gray-50">
+      {/* Feature Tabs Section */}
+      <section id="features" className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-              Built for Veterinary Excellence
-            </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Every feature designed specifically for veterinary practices and medical professionals
+          <div className="text-center mb-12">
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+              Streamline your workflow for faster pet care
+              </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Medora AI is designed to save you time, money, and make your practice more efficient.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[
-              {
-                icon: Mic,
-                title: "Real-time Voice Transcription",
-                description: "Advanced speech recognition with 99.8% accuracy for medical terminology",
-                color: "text-blue-600",
-                bgColor: "bg-blue-50"
-              },
-              {
-                icon: Pill,
-                title: "Medical Drug Dictionary",
-                description: "RAG-powered AI with comprehensive veterinary and human medicine database",
-                color: "text-green-600",
-                bgColor: "bg-green-50"
-              },
-              {
-                icon: FileText,
-                title: "Auto-generated Prescriptions",
-                description: "Complete prescriptions with dosage, frequency, and follow-up plans",
-                color: "text-purple-600",
-                bgColor: "bg-purple-50"
-              },
-              {
-                icon: Cloud,
-                title: "Secure Cloud Storage",
-                description: "HIPAA-compliant with enterprise-grade security and automatic backup",
-                color: "text-indigo-600",
-                bgColor: "bg-indigo-50"
-              },
-              {
-                icon: Globe,
-                title: "Multilingual Support",
-                description: "English, Hindi, Malayalam, Tamil - speak in your preferred language",
-                color: "text-orange-600",
-                bgColor: "bg-orange-50"
-              },
-              {
-                icon: Shield,
-                title: "Medical-Grade Security",
-                description: "End-to-end encryption and compliance with healthcare data standards",
-                color: "text-red-600",
-                bgColor: "bg-red-50"
-              }
-            ].map((feature, index) => (
-              <Card key={index} className="h-full hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                <CardContent className="p-6">
-                  <div className={`w-12 h-12 ${feature.bgColor} rounded-lg flex items-center justify-center mb-4`}>
-                    <feature.icon className={`w-6 h-6 ${feature.color}`} />
+          {/* Feature Tabs */}
+          <div className="flex flex-wrap justify-center gap-4 mb-12">
+            {Object.entries(features).map(([key, feature]) => (
+              <button
+                key={key}
+                onClick={() => setActiveFeature(key)}
+                className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                  activeFeature === key
+                    ? 'bg-gray-900 text-white shadow-lg'
+                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}
+              >
+                <feature.icon className={`w-5 h-5 inline mr-2 ${activeFeature === key ? 'text-white' : feature.iconColor}`} />
+                {feature.title}
+              </button>
+            ))}
+                    </div>
+
+          {/* Active Feature Content */}
+          <div className="max-w-4xl mx-auto">
+            <Card className="border-2 border-gray-200">
+              <CardContent className="p-12">
+                <div className="flex items-start gap-6">
+                  {(() => {
+                    const active = features[activeFeature as keyof typeof features];
+                    const FeatureIcon = active.icon;
+                    return (
+                      <div className={`w-16 h-16 ${active.bgColor} rounded-xl flex items-center justify-center flex-shrink-0`}>
+                        <FeatureIcon className={`w-8 h-8 ${active.iconColor}`} />
+                      </div>
+                    );
+                  })()}
+                      <div>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                      {features[activeFeature as keyof typeof features].title}
+                    </h3>
+                    <p className="text-lg text-gray-600 leading-relaxed">
+                      {features[activeFeature as keyof typeof features].description}
+                    </p>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{feature.title}</h3>
-                  <p className="text-gray-600 text-sm">{feature.description}</p>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Metrics Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {[
+              { value: '30 hrs', label: 'Saved per month', icon: Clock },
+              { value: '99.8%', label: 'Accuracy rate', icon: CheckCircle },
+              { value: '1,000+', label: 'Veterinary clinics', icon: Users },
+              { value: '300%', label: 'Average ROI', icon: TrendingUp }
+            ].map((metric, index) => (
+              <div key={index} className="text-center">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <metric.icon className="w-6 h-6 text-blue-600" />
+                </div>
+                <div className="text-4xl font-bold text-gray-900 mb-2">{metric.value}</div>
+                <div className="text-gray-600">{metric.label}</div>
+                  </div>
             ))}
           </div>
         </div>
       </section>
 
       {/* How It Works */}
-      <section id="demo-section" className="py-20 bg-white">
+      <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-              How VoiceScribe.AI Works
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+              How it works
             </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Three simple steps to transform your practice
             </p>
           </div>
@@ -410,107 +322,84 @@ const LandingPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
-                step: "01",
-                icon: Mic,
-                title: "Record Conversation",
-                description: "Start recording during patient consultation - our AI listens in real-time",
-                color: "blue"
+                step: '01',
+                title: 'Record Conversation',
+                description: 'Start recording during patient consultation—our AI listens in real-time',
+                icon: Mic
               },
               {
-                step: "02",
-                icon: Brain,
-                title: "AI Transcribes & Structures",
-                description: "Advanced AI converts speech to structured SOAP format with medical accuracy",
-                color: "green"
+                step: '02',
+                title: 'AI Transcribes & Structures',
+                description: 'Advanced AI converts speech to structured SOAP format with veterinary accuracy',
+                icon: Brain
               },
               {
-                step: "03",
-                icon: Download,
-                title: "Export & Sync",
-                description: "Download SOAP notes or sync directly with your EMR/VetQuRE system",
-                color: "purple"
+                step: '03',
+                title: 'Export & Sync',
+                description: 'Download SOAP notes or sync directly with your EMR/VetQuRE system',
+                icon: FileText
               }
             ].map((step, index) => (
-              <div key={index} className="relative">
-                <Card className="h-full text-center p-8 hover:shadow-lg transition-shadow duration-300">
-                  <div className={`w-20 h-20 bg-${step.color}-100 rounded-full flex items-center justify-center mx-auto mb-6`}>
-                    <step.icon className={`w-10 h-10 text-${step.color}-600`} />
+              <Card key={index} className="border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardContent className="p-8 text-center">
+                  <div className="text-5xl font-bold text-blue-600 mb-4">{step.step}</div>
+                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <step.icon className="w-8 h-8 text-blue-600" />
                   </div>
-                  <div className={`text-4xl font-bold text-${step.color}-600 mb-4`}>{step.step}</div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">{step.title}</h3>
+                  <h3 className="text-xl font-bold text-gray-900 mb-3">{step.title}</h3>
                   <p className="text-gray-600">{step.description}</p>
+                </CardContent>
                 </Card>
-                
-                {index < 2 && (
-                  <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2">
-                    <ChevronRight className="w-8 h-8 text-gray-400" />
-                  </div>
-                )}
-              </div>
             ))}
-          </div>
-
-          <div className="mt-16 text-center">
-            <Button
-              onClick={handleStartTrial}
-              size="lg"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold rounded-lg shadow-lg"
-            >
-              Try Live Demo
-              <Play className="ml-2 w-5 h-5" />
-            </Button>
           </div>
         </div>
       </section>
 
       {/* Testimonials */}
-      <section className="py-20 bg-gradient-to-br from-blue-50 to-indigo-100">
+      <section id="resources" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-              Trusted by Veterinary Professionals
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+              Trusted by veterinary professionals
             </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              See what doctors and veterinarians are saying about VoiceScribe.AI
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              See what doctors and veterinarians are saying about Medora AI
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
-                quote: "VoiceScribe saved me 6 hours a week — now I focus on diagnosis, not typing. The accuracy is incredible.",
+                quote: "Medora AI saved me 6 hours a week—now I focus on diagnosis, not typing. The accuracy is incredible.",
                 author: "Dr. Sreejith Kumar",
                 title: "Veterinary Surgeon, Chennai",
-                rating: 5,
-                avatar: "👨‍⚕️"
+                rating: 5
               },
               {
                 quote: "Finally, a tool that understands veterinary medicine. It writes better SOAP notes than most humans.",
                 author: "Dr. Priya Sharma",
                 title: "Small Animal Practitioner, Mumbai",
-                rating: 5,
-                avatar: "👩‍⚕️"
+                rating: 5
               },
               {
-                quote: "The time savings are real. I can see 3 more patients per day without working longer hours.",
+                quote: "The time savings are real. I can see 3 more pets per day without working longer hours.",
                 author: "Dr. Rajesh Patel",
                 title: "Mixed Practice Veterinarian, Delhi",
-                rating: 5,
-                avatar: "👨‍⚕️"
+                rating: 5
               }
             ].map((testimonial, index) => (
-              <Card key={index} className="h-full p-8 hover:shadow-lg transition-shadow duration-300">
-                <CardContent className="text-center">
-                  <div className="text-4xl mb-4">{testimonial.avatar}</div>
-                  <Quote className="w-8 h-8 text-blue-600 mx-auto mb-4" />
-                  <p className="text-gray-700 mb-6 italic">"{testimonial.quote}"</p>
-                  <div className="flex justify-center mb-4">
+              <Card key={index} className="border border-gray-200">
+                <CardContent className="p-8">
+                  <div className="flex mb-4">
                     {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
+                      <Star key={i} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
                     ))}
                   </div>
-                  <h4 className="font-semibold text-gray-900">{testimonial.author}</h4>
-                  <p className="text-gray-600 text-sm">{testimonial.title}</p>
+                  <p className="text-gray-700 mb-6 italic">"{testimonial.quote}"</p>
+                  <div>
+                    <div className="font-semibold text-gray-900">{testimonial.author}</div>
+                    <div className="text-sm text-gray-600">{testimonial.title}</div>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -518,143 +407,82 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Revenue Calculator */}
-      <section className="py-20 bg-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-              Calculate Your Savings
-            </h2>
-            <p className="text-xl text-gray-600">
-              See how much time and money VoiceScribe.AI can save your clinic
-            </p>
-          </div>
-
-          <Card className="p-8 bg-gradient-to-br from-blue-50 to-indigo-100">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div>
-                <Label htmlFor="doctors" className="text-lg font-semibold text-gray-900 mb-4 block">
-                  Number of Doctors in Your Clinic
-                </Label>
-                <Input
-                  id="doctors"
-                  type="number"
-                  min="1"
-                  value={doctorsCount}
-                  onChange={(e) => setDoctorsCount(parseInt(e.target.value) || 1)}
-                  className="text-2xl font-bold text-center py-4"
-                />
-              </div>
-              
-              <div className="space-y-6">
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-green-600 mb-2">
-                    ₹{monthlySavings.toLocaleString()}
-                  </div>
-                  <div className="text-gray-600">Additional Monthly Revenue</div>
-                </div>
-                
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-blue-600 mb-2">
-                    {hoursSaved}
-                  </div>
-                  <div className="text-gray-600">Hours Saved Per Month</div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-8 text-center">
-              <Button
-                onClick={handleStartTrial}
-                size="lg"
-                className="bg-blue-600 hover:bg-blue-700 px-8 py-4 text-lg font-semibold"
-              >
-                Start Free Trial
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-              <p className="text-sm text-gray-600 mt-4">
-                No credit card required • 14-day free trial • Cancel anytime
-              </p>
-            </div>
-          </Card>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="py-20 bg-gradient-to-br from-blue-600 to-blue-800 text-white">
+      {/* Pricing CTA */}
+      <section id="pricing" className="py-20 bg-gray-900 text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl md:text-5xl font-bold mb-6">
-            Ready to Transform Your Practice?
+            Ready to transform your practice?
           </h2>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join 1,000+ veterinary clinics already saving time and increasing revenue with VoiceScribe.AI
+          <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+            Join 1,000+ veterinary clinics already saving time and increasing revenue with Medora AI
           </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               onClick={handleStartTrial}
               size="lg"
-              className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-4 text-lg font-semibold shadow-xl"
+              className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-6 text-lg font-semibold"
             >
-              Start Free Trial
+              Start free trial
               <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
-            
             <Button
-              onClick={handleWatchDemo}
               variant="outline"
               size="lg"
-              className="border-white text-blue-600 hover:bg-white hover:text-blue-600 px-8 py-4 text-lg font-semibold transition-all duration-300"
+                           className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-6 text-lg font-semibold"
             >
-              <Play className="mr-2 w-5 h-5" />
-              Watch Demo
+              Book a demo
+              <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
           </div>
-          
-          <p className="text-sm text-blue-200">
+          <p className="text-sm text-gray-400 mt-6">
             No credit card required • 14-day free trial • Setup in 5 minutes
           </p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
+      <footer id="about" className="bg-white border-t border-gray-200 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="col-span-1 md:col-span-2">
-              <h3 className="text-2xl font-bold mb-4">VoiceScribe.AI</h3>
-              <p className="text-gray-400 mb-4 max-w-md">
-                The most trusted AI scribe in veterinary care. Turn your voice into perfect SOAP notes and focus on what matters—your patients.
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <Heart className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-xl font-bold text-gray-900">Medora AI</span>
+              </div>
+              <p className="text-gray-600 mb-4 max-w-md">
+                The most trusted AI scribe in veterinary care. Turn your voice into perfect SOAP notes and focus on what matters—your pets.
               </p>
-              <div className="flex gap-4">
-                <Badge className="bg-blue-600 text-white">Medical-Grade AI</Badge>
+              <div className="flex gap-2">
+                <Badge className="bg-blue-600 text-white">Veterinary-Grade AI</Badge>
                 <Badge className="bg-green-600 text-white">HIPAA Compliant</Badge>
               </div>
             </div>
             
             <div>
-              <h4 className="font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">Features</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Integrations</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">API</a></li>
+              <h4 className="font-semibold text-gray-900 mb-4">Product</h4>
+              <ul className="space-y-2 text-gray-600">
+                <li><a href="#features" className="hover:text-gray-900 transition-colors">Features</a></li>
+                <li><a href="#pricing" className="hover:text-gray-900 transition-colors">Pricing</a></li>
+                <li><a href="#" className="hover:text-gray-900 transition-colors">Integrations</a></li>
+                <li><a href="#" className="hover:text-gray-900 transition-colors">API</a></li>
               </ul>
             </div>
             
             <div>
-              <h4 className="font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">About</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Security</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
+              <h4 className="font-semibold text-gray-900 mb-4">Company</h4>
+              <ul className="space-y-2 text-gray-600">
+                <li><a href="#about" className="hover:text-gray-900 transition-colors">About</a></li>
+                <li><a href="#resources" className="hover:text-gray-900 transition-colors">Resources</a></li>
+                <li><a href="#" className="hover:text-gray-900 transition-colors">Security</a></li>
+                <li><a href="#" className="hover:text-gray-900 transition-colors">Contact</a></li>
               </ul>
             </div>
           </div>
           
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2024 VoiceScribe.AI. All rights reserved.</p>
+          <div className="border-t border-gray-200 mt-8 pt-8 text-center text-gray-600">
+            <p>&copy; 2024 Medora AI. All rights reserved.</p>
           </div>
         </div>
       </footer>

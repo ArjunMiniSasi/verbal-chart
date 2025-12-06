@@ -142,7 +142,7 @@ const PatientTemplate = () => {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/dashboard')}
                 className="gap-2"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -219,7 +219,7 @@ const PatientTemplate = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">Medical Actions</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground">Clinical Actions</h4>
                   <div className="grid grid-cols-2 gap-2">
                     <Button variant="outline" size="sm" className="gap-2">
                       <FileText className="h-4 w-4" />
@@ -295,7 +295,7 @@ const PatientTemplate = () => {
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="transcript">Live Transcript</TabsTrigger>
                 <TabsTrigger value="soap">SOAP Notes</TabsTrigger>
-                <TabsTrigger value="history">Medical History</TabsTrigger>
+                <TabsTrigger value="history">Clinical History</TabsTrigger>
               </TabsList>
 
               <TabsContent value="transcript" className="space-y-6">

@@ -17,7 +17,8 @@ import {
   TrendingUp,
   Activity,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Home
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { mockPatients } from "@/mocks/seeds"
@@ -45,6 +46,10 @@ const DoctorHome = () => {
     navigate('/patients')
   }
 
+  const handleGoToWebsite = () => {
+    navigate('/')
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <DoctorHeader />
@@ -53,10 +58,21 @@ const DoctorHome = () => {
         {/* Welcome Section with Quick Actions */}
         <div className="mb-8">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">
-                Welcome back, Dr. Smith
-              </h1>
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-3xl font-bold text-foreground">
+                  Welcome back, Dr. Smith
+                </h1>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleGoToWebsite}
+                  className="h-8 w-8 p-0 opacity-40 hover:opacity-100 transition-opacity"
+                  title="Visit Website"
+                >
+                  <Home className="h-4 w-4" />
+                </Button>
+              </div>
               <p className="text-muted-foreground">
                 Here's what's happening with your patients today.
               </p>
