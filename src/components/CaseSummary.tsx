@@ -321,7 +321,7 @@ ${summary}
           <Button
             onClick={generateSummary}
             disabled={isGenerating || !soapNote.subjective || !soapNote.objective || !soapNote.assessment}
-            className="flex-1"
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
           >
             {isGenerating ? (
               <>

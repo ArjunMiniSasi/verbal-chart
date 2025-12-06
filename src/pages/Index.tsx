@@ -3,6 +3,7 @@ import { AudioUpload } from "@/components/AudioUpload";
 import { Transcript } from "@/components/Transcript";
 import { SOAPEditor } from "@/components/SOAPEditor";
 import { CaseSummary } from "@/components/CaseSummary";
+import { PreviewModal } from "@/components/PreviewModal";
 import { useMedoraStore } from "@/stores/medoraStore";
 
 const Index = () => {
@@ -37,6 +38,7 @@ const Index = () => {
           </div>
         )}
       </div>
+      <PreviewModal />
     </div>
   );
 };

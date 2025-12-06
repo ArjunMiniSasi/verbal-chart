@@ -217,9 +217,12 @@ export const VoiceButton = () => {
             animate={isRecording ? { 
               scale: [1, 1.1, 1],
               rotate: [0, 360]
-            } : {}}
+            } : {
+              rotate: 0,
+              scale: 1
+            }}
             transition={{ 
-              duration: 2,
+              duration: isRecording ? 2 : 0.3,
               repeat: isRecording ? Infinity : 0,
               ease: "easeInOut"
             }}
