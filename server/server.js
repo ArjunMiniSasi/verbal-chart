@@ -1,11 +1,18 @@
 // server.js — Medora hybrid RAG server (complete)
 // Drop into your project (replace/merge as needed).
 
-require('dotenv').config();
+const path = require('path');
+// Load .env.local from the parent directory (project root)
+require('dotenv').config({
+  path: path.resolve(__dirname, '..', '.env.local')
+});
+// Also try loading .env as fallback
+require('dotenv').config({
+  path: path.resolve(__dirname, '..', '.env')
+});
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
-const path = require('path');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 // Lazy load pdf-parse only when needed to avoid DOMMatrix issues
@@ -24,6 +31,16 @@ function getPdfParser() {
 
 // OpenAI client (keep same style as your earlier code)
 const OpenAI = require('openai');
+
+// Verify OPENAI_API_KEY is loaded
+if (!process.env.OPENAI_API_KEY) {
+  console.error('ERROR: OPENAI_API_KEY is not set!');
+  console.error('Please ensure .env.local or .env file exists in the project root with OPENAI_API_KEY defined.');
+  console.error('Current __dirname:', __dirname);
+  console.error('Looking for .env files at:', path.resolve(__dirname, '..'));
+  process.exit(1);
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
@@ -63,10 +80,28 @@ try {
 
 // ------------- Firebase Admin init (server) -------------
 try {
-  const serviceAccountPath = process.env.SERVICE_ACCOUNT_PATH || './medora admin service.json';
-  if (!fs.existsSync(serviceAccountPath)) {
-    console.warn('⚠️ Firebase service account file not found at', serviceAccountPath, '. Make sure to provide SERVICE_ACCOUNT_PATH in env or put the json there.');
+  // Try multiple possible paths for service account
+  const possiblePaths = [
+    process.env.SERVICE_ACCOUNT_PATH,
+    path.resolve(__dirname, 'medora admin service.json'),
+    path.resolve(__dirname, '../medora admin service.json'),
+    './medora admin service.json',
+    '../medora admin service.json'
+  ].filter(Boolean); // Remove undefined values
+
+  let serviceAccountPath = null;
+  for (const possiblePath of possiblePaths) {
+    if (fs.existsSync(possiblePath)) {
+      serviceAccountPath = possiblePath;
+      break;
+    }
+  }
+
+  if (!serviceAccountPath) {
+    console.warn('⚠️ Firebase service account file not found. Tried paths:', possiblePaths);
+    console.warn('⚠️ Make sure to provide SERVICE_ACCOUNT_PATH in env or put the json file in server/ directory.');
   } else {
+    console.log('📁 Using service account file:', serviceAccountPath);
     const serviceAccount = require(serviceAccountPath);
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
@@ -171,7 +206,7 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
     });
   } catch (error) {
     console.error('Transcription error:', error);
-    if (req.file && fs.existsSync(req.file.path)) fs.unlink(req.file.path, () => {});
+    if (req.file && fs.existsSync(req.file.path)) fs.unlink(req.file.path, () => { });
     res.status(500).json({ error: 'Transcription failed', message: error.message || String(error) });
   }
 });
@@ -184,36 +219,37 @@ const CHUNK_OVERLAP = parseInt(process.env.CHUNK_OVERLAP || '120', 10);
 const PLUMB_DATA_PATH = path.resolve(__dirname, '../data/plumb_embeddings.json');
 
 /**
- * Ingest Plumb Veterinary Drug Handbook data into Firestore
+ * Ingest Plumb Veterinary Drug Handbook data into Firestore (medora_chunks collection)
  * This loads the pre-computed embeddings from plumb_embeddings.json
+ * @deprecated Use ingestPlumbToFirestore() for plumb_embeddings collection instead
  */
 async function ingestPlumbDataToFirestore() {
   if (!adminDb) throw new Error('adminDb not initialised');
-  
+
   try {
     console.log('📚 Loading Plumb data from:', PLUMB_DATA_PATH);
-    
+
     if (!fs.existsSync(PLUMB_DATA_PATH)) {
       console.warn('⚠️ Plumb data file not found at', PLUMB_DATA_PATH);
       return { ok: false, error: 'Plumb data file not found' };
     }
-    
+
     const plumbData = JSON.parse(fs.readFileSync(PLUMB_DATA_PATH, 'utf8'));
     const { chunks, embeddings } = plumbData;
-    
+
     if (!chunks || !embeddings || chunks.length !== embeddings.length) {
       throw new Error('Invalid Plumb data structure');
     }
-    
+
     console.log(`📖 Ingesting ${chunks.length} Plumb chunks into Firestore...`);
-    
+
     const chunksRef = adminDb.collection('medora_chunks');
     const BATCH_SIZE = 50;
-    
+
     for (let b = 0; b < chunks.length; b += BATCH_SIZE) {
       const slice = chunks.slice(b, b + BATCH_SIZE);
       const embSlice = embeddings.slice(b, b + BATCH_SIZE);
-      
+
       const batch = adminDb.batch();
       for (let i = 0; i < slice.length; i++) {
         const chunkIndex = b + i;
@@ -225,7 +261,7 @@ async function ingestPlumbDataToFirestore() {
           chunk_index: chunkIndex,
           content: slice[i],
           embedding: embSlice[i],
-          meta: { 
+          meta: {
             source: 'plumb',
             type: 'drug_handbook',
             ingested_at: new Date().toISOString()
@@ -237,7 +273,7 @@ async function ingestPlumbDataToFirestore() {
       console.log(`  ✓ Ingested batch ${Math.floor(b / BATCH_SIZE) + 1}/${Math.ceil(chunks.length / BATCH_SIZE)}`);
       if (b + BATCH_SIZE < chunks.length) await sleep(100);
     }
-    
+
     console.log(`✅ Successfully ingested ${chunks.length} Plumb chunks`);
     return { ok: true, chunksCount: chunks.length };
   } catch (err) {
@@ -247,12 +283,178 @@ async function ingestPlumbDataToFirestore() {
 }
 
 /**
+ * Ingest Plumb Veterinary Drug Handbook data into Firestore plumb_embeddings collection
+ * This loads the pre-computed embeddings from plumb_embeddings.json
+ * Stores data in dedicated 'plumb_embeddings' collection for optimized searching
+ */
+async function ingestPlumbToFirestore() {
+  if (!adminDb) {
+    console.error('❌ adminDb not initialized');
+    return { ok: false, error: 'adminDb not initialized' };
+  }
+
+  try {
+    console.log('📚 Loading Plumb data from:', PLUMB_DATA_PATH);
+
+    if (!fs.existsSync(PLUMB_DATA_PATH)) {
+      console.warn('⚠️ Plumb data file not found at', PLUMB_DATA_PATH);
+      return { ok: false, error: 'Plumb data file not found' };
+    }
+
+    const plumbData = JSON.parse(fs.readFileSync(PLUMB_DATA_PATH, 'utf8'));
+    const { chunks, embeddings } = plumbData;
+
+    if (!chunks || !embeddings || chunks.length !== embeddings.length) {
+      throw new Error('Invalid Plumb data structure');
+    }
+
+    console.log(`📖 Ingesting ${chunks.length} Plumb chunks into Firestore 'plumb_embeddings' collection...`);
+
+    const plumbRef = adminDb.collection('plumb_embeddings');
+    const BATCH_SIZE = 50;
+
+    for (let b = 0; b < chunks.length; b += BATCH_SIZE) {
+      const slice = chunks.slice(b, b + BATCH_SIZE);
+      const embSlice = embeddings.slice(b, b + BATCH_SIZE);
+
+      const batch = adminDb.batch();
+      for (let i = 0; i < slice.length; i++) {
+        const chunkIndex = b + i;
+        const chunkId = `plumb__${chunkIndex}`;
+        const docRef = plumbRef.doc(chunkId);
+        batch.set(docRef, {
+          doc_id: 'plumb_drug_handbook',
+          chunk_id: chunkId,
+          chunk_index: chunkIndex,
+          content: slice[i],
+          embedding: embSlice[i],
+          meta: {
+            source: 'plumb',
+            type: 'drug_handbook',
+            ingested_at: new Date().toISOString()
+          },
+          created_at: new Date().toISOString()
+        }, { merge: true });
+      }
+      await batch.commit();
+      console.log(`  ✓ Ingested batch ${Math.floor(b / BATCH_SIZE) + 1}/${Math.ceil(chunks.length / BATCH_SIZE)}`);
+      if (b + BATCH_SIZE < chunks.length) await sleep(100);
+    }
+
+    console.log(`✅ Successfully ingested ${chunks.length} Plumb chunks into 'plumb_embeddings' collection`);
+    return { ok: true, chunksCount: chunks.length, collection: 'plumb_embeddings' };
+  } catch (err) {
+    console.error('❌ Error ingesting Plumb data to Firestore:', err);
+    return { ok: false, error: err.message || String(err) };
+  }
+}
+
+/**
+ * Search Plumb data from Firebase Firestore plumb_embeddings collection
+ * Uses vector similarity search on Firebase collection instead of local file
+ * @param {string} query - Search query text
+ * @param {number} k - Number of top results to return (default: 5)
+ * @param {number} sampleSize - Number of documents to sample from Firebase (default: 2000)
+ * @returns {Promise<Array>} Array of top-k relevant Plumb chunks with similarity scores
+ */
+async function searchPlumbFromFirestore(query, k = 5, sampleSize = 2000) {
+  if (!adminDb) {
+    console.warn('⚠️ adminDb not initialized, cannot search Firebase');
+    return [];
+  }
+
+  try {
+    console.log(`🔍 [FIREBASE PLUMB] Searching Plumb embeddings from Firestore collection...`);
+    console.log(`🔍 [FIREBASE PLUMB] Query: "${query.substring(0, 100)}..."`);
+
+    // Generate query embedding
+    const embResp = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: query
+    });
+    const qEmb = embResp.data[0].embedding;
+    console.log(`🔍 [FIREBASE PLUMB] Query embedding generated: ${qEmb.length} dimensions`);
+
+    // Sample documents from plumb_embeddings collection
+    // Note: Firestore doesn't support native vector search, so we sample and calculate similarity
+    const plumbRef = adminDb.collection('plumb_embeddings');
+    const snapshot = await plumbRef.limit(sampleSize).get();
+
+    if (snapshot.empty) {
+      console.warn('⚠️ [FIREBASE PLUMB] No documents found in plumb_embeddings collection. Run /api/ingest-plumb-to-firestore first.');
+      return [];
+    }
+
+    console.log(`🔍 [FIREBASE PLUMB] Sampling ${snapshot.size} documents from Firestore...`);
+
+    const candidates = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      if (!data || !data.embedding || !data.content) return;
+
+      let emb = data.embedding;
+      // Handle dimension mismatch
+      if (emb.length !== qEmb.length) {
+        if (emb.length > qEmb.length) emb = emb.slice(0, qEmb.length);
+        else emb = emb.concat(new Array(qEmb.length - emb.length).fill(0));
+      }
+
+      const sim = cosineSimilarity(qEmb, emb);
+      candidates.push({
+        id: doc.id,
+        chunk_id: data.chunk_id || doc.id,
+        content: data.content,
+        doc_id: data.doc_id || 'plumb_drug_handbook',
+        similarity: sim,
+        chunk_index: data.chunk_index || 0
+      });
+    });
+
+    console.log(`🔍 [FIREBASE PLUMB] Calculated similarity for ${candidates.length} Plumb chunks`);
+
+    // Sort by similarity and return top-k
+    candidates.sort((a, b) => b.similarity - a.similarity);
+    const topK = candidates.slice(0, k);
+
+    console.log(`📖 [FIREBASE PLUMB] Top ${topK.length} Plumb references selected:`);
+    topK.forEach((ref, idx) => {
+      console.log(`   ${idx + 1}. Similarity: ${ref.similarity.toFixed(4)} | Chunk ID: ${ref.chunk_id} | Preview: "${ref.content.substring(0, 80)}..."`);
+    });
+    console.log(`📖 [FIREBASE PLUMB] Found ${topK.length} relevant Plumb references (top similarity: ${topK[0]?.similarity?.toFixed(3) || 0})`);
+
+    return topK;
+  } catch (err) {
+    console.error('❌ [FIREBASE PLUMB] Error searching Plumb data from Firestore:', err);
+    return [];
+  }
+}
+
+/**
  * Search Plumb data specifically for treatment/drug information
- * Uses local plumb_embeddings.json file instead of Firebase
+ * PRIMARY: Uses Firebase Firestore plumb_embeddings collection
+ * FALLBACK: Uses local plumb_embeddings.json file if Firebase fails or is unavailable
  * Returns top-k relevant chunks from Plumb drug handbook
  */
 async function searchPlumbData(query, k = 5) {
+  // Try Firebase first
   try {
+    console.log('🔍 [PLUMB RAG] Attempting to search from Firebase Firestore...');
+    const firebaseResults = await searchPlumbFromFirestore(query, k, 2000);
+
+    if (firebaseResults && firebaseResults.length > 0) {
+      console.log(`✅ [PLUMB RAG] Successfully retrieved ${firebaseResults.length} results from Firebase`);
+      return firebaseResults;
+    } else {
+      console.warn('⚠️ [PLUMB RAG] No results from Firebase, falling back to local file...');
+    }
+  } catch (firebaseErr) {
+    console.warn('⚠️ [PLUMB RAG] Firebase search failed, falling back to local file:', firebaseErr.message);
+  }
+
+  // Fallback to local file
+  try {
+    console.log('🔍 [PLUMB RAG] Searching from local plumb_embeddings.json file...');
+
     // Check if Plumb data file exists
     if (!fs.existsSync(PLUMB_DATA_PATH)) {
       console.warn('⚠️ Plumb data file not found at', PLUMB_DATA_PATH);
@@ -263,13 +465,13 @@ async function searchPlumbData(query, k = 5) {
     let plumbData;
     try {
       const fileContent = fs.readFileSync(PLUMB_DATA_PATH, 'utf8');
-      
+
       // Check if file is empty or too small
       if (!fileContent || fileContent.trim().length < 100) {
         console.warn('⚠️ Plumb data file appears to be empty or incomplete');
         return [];
       }
-      
+
       // Try to parse JSON
       plumbData = JSON.parse(fileContent);
     } catch (parseErr) {
@@ -277,14 +479,14 @@ async function searchPlumbData(query, k = 5) {
       console.error('⚠️ File might be corrupted or still being written. Check if processing script is still running.');
       return [];
     }
-    
+
     const { chunks, embeddings } = plumbData || {};
-    
+
     if (!chunks || !embeddings || chunks.length === 0) {
       console.warn('⚠️ Plumb data file is empty or invalid structure');
       return [];
     }
-    
+
     if (chunks.length !== embeddings.length) {
       console.warn(`⚠️ Plumb data mismatch: ${chunks.length} chunks but ${embeddings.length} embeddings`);
       // Use the minimum to avoid index errors
@@ -306,17 +508,17 @@ async function searchPlumbData(query, k = 5) {
     });
     const qEmb = embResp.data[0].embedding;
     console.log(`🔍 [PLUMB RAG DEBUG] Query embedding generated: ${qEmb.length} dimensions`);
-    
+
     // Calculate similarity for all chunks (or sample if too many)
     const MAX_CHUNKS_TO_SEARCH = 1000; // Limit search to first 1000 chunks for performance
     const searchChunks = chunks.slice(0, MAX_CHUNKS_TO_SEARCH);
     const searchEmbeddings = embeddings.slice(0, MAX_CHUNKS_TO_SEARCH);
     console.log(`🔍 [PLUMB RAG DEBUG] Comparing query embedding against ${searchChunks.length} Plumb embeddings...`);
-    
+
     const candidates = [];
     for (let i = 0; i < searchChunks.length; i++) {
       if (!searchEmbeddings[i]) continue;
-      
+
       let emb = searchEmbeddings[i];
       // Handle dimension mismatch
       if (emb.length !== qEmb.length) {
@@ -324,17 +526,17 @@ async function searchPlumbData(query, k = 5) {
         else emb = emb.concat(new Array(qEmb.length - emb.length).fill(0));
       }
       const sim = cosineSimilarity(qEmb, emb);
-      candidates.push({ 
+      candidates.push({
         id: `plumb__${i}`,
         chunk_id: `plumb__${i}`,
-        content: searchChunks[i], 
-        doc_id: 'plumb_drug_handbook', 
+        content: searchChunks[i],
+        doc_id: 'plumb_drug_handbook',
         similarity: sim
       });
     }
-    
+
     console.log(`🔍 [PLUMB RAG DEBUG] Calculated similarity for ${candidates.length} Plumb chunks`);
-    
+
     // Sort by similarity and return top-k
     candidates.sort((a, b) => b.similarity - a.similarity);
     const topK = candidates.slice(0, k);
@@ -345,7 +547,7 @@ async function searchPlumbData(query, k = 5) {
     console.log(`📖 Found ${topK.length} relevant Plumb references (top similarity: ${topK[0]?.similarity?.toFixed(3) || 0})`);
     return topK;
   } catch (err) {
-    console.error('Error searching Plumb data:', err);
+    console.error('❌ Error searching Plumb data from local file:', err);
     return [];
   }
 }
@@ -419,7 +621,7 @@ app.post('/api/ingest-transcript', async (req, res) => {
   }
 });
 
-// Plumb data ingestion endpoint (from JSON file)
+// Plumb data ingestion endpoint (from JSON file to medora_chunks collection)
 app.post('/api/ingest-plumb', async (req, res) => {
   try {
     const out = await ingestPlumbDataToFirestore();
@@ -431,6 +633,29 @@ app.post('/api/ingest-plumb', async (req, res) => {
   } catch (err) {
     console.error('ingest-plumb error', err);
     res.status(500).json({ error: 'ingest-plumb failed', message: err.message || String(err) });
+  }
+});
+
+// Plumb data ingestion endpoint (from JSON file to plumb_embeddings collection)
+// This is the PRIMARY endpoint for storing Plumb data in the dedicated collection
+app.post('/api/ingest-plumb-to-firestore', async (req, res) => {
+  try {
+    console.log('🚀 Starting Plumb data ingestion to Firestore plumb_embeddings collection...');
+    const out = await ingestPlumbToFirestore();
+    if (out.ok) {
+      res.json({
+        success: true,
+        message: `Successfully ingested ${out.chunksCount} Plumb chunks into '${out.collection}' collection`,
+        chunksCount: out.chunksCount,
+        collection: out.collection,
+        ...out
+      });
+    } else {
+      res.status(500).json({ error: 'Plumb ingestion to Firestore failed', ...out });
+    }
+  } catch (err) {
+    console.error('ingest-plumb-to-firestore error', err);
+    res.status(500).json({ error: 'ingest-plumb-to-firestore failed', message: err.message || String(err) });
   }
 });
 
@@ -470,18 +695,18 @@ app.post('/api/process-plumb-pdf', uploadPdf.single('pdf'), async (req, res) => 
 
     for (let b = 0; b < chunks.length; b += BATCH_SIZE) {
       const slice = chunks.slice(b, b + BATCH_SIZE);
-      
+
       // Generate embeddings for the slice
       const embeddingResp = await openai.embeddings.create({
         model: 'text-embedding-3-small',
         input: slice
       });
-      
+
       const embs = embeddingResp.data.map(d => d.embedding);
       embeddings.push(...embs);
-      
+
       console.log(`  ✓ Generated embeddings for batch ${Math.floor(b / BATCH_SIZE) + 1}/${Math.ceil(chunks.length / BATCH_SIZE)} (${embeddings.length}/${chunks.length})`);
-      
+
       // Rate limiting
       if (b + BATCH_SIZE < chunks.length) await sleep(100);
     }
@@ -557,7 +782,7 @@ Return ONLY valid JSON.
     });
     let content = resp.choices[0].message.content || resp.choices[0].text || '';
     // remove fences
-    content = content.replace(/^```(?:json)?/, '').replace(/```$/,'').trim();
+    content = content.replace(/^```(?:json)?/, '').replace(/```$/, '').trim();
     try {
       const parsed = JSON.parse(content);
       return parsed;
@@ -640,7 +865,7 @@ async function hybridRetrieve(query, opts = {}) {
 
   // 2) sample subset of medora_chunks (smart sampling) - from Firebase if available
   const candidates = [];
-  
+
   if (adminDb) {
     const snapshot = await adminDb.collection('medora_chunks').limit(sampleSize).get();
     snapshot.forEach(doc => {
@@ -654,24 +879,24 @@ async function hybridRetrieve(query, opts = {}) {
       }
       const sim = cosineSimilarity(qEmb, emb);
       const isPlumb = data.meta && data.meta.source === 'plumb';
-      candidates.push({ 
-        id: doc.id, 
-        content: data.content, 
-        doc_id: data.doc_id, 
-        sim, 
+      candidates.push({
+        id: doc.id,
+        content: data.content,
+        doc_id: data.doc_id,
+        sim,
         chunk_index: data.chunk_index,
         is_plumb: isPlumb || false
       });
     });
     console.log(`🔍 [HYBRID RAG DEBUG] Found ${candidates.length} candidates from Firebase`);
   }
-  
+
   // 2b) Also search Plumb data from local JSON file
   try {
     console.log(`🔍 [HYBRID RAG DEBUG] Searching Plumb embeddings for hybrid retrieval...`);
     const plumbResults = await searchPlumbData(query, Math.min(vectorTopK, 10));
     console.log(`🔍 [HYBRID RAG DEBUG] Found ${plumbResults.length} Plumb candidates for hybrid retrieval`);
-    
+
     // Add Plumb results to candidates with is_plumb flag
     plumbResults.forEach(plumb => {
       candidates.push({
@@ -689,7 +914,7 @@ async function hybridRetrieve(query, opts = {}) {
     console.warn('⚠️ [HYBRID RAG DEBUG] Plumb search failed in hybrid retrieval:', plumbErr.message);
   }
 
-  candidates.sort((a,b) => b.sim - a.sim);
+  candidates.sort((a, b) => b.sim - a.sim);
   const topVectors = candidates.slice(0, vectorTopK);
   console.log(`🔍 [HYBRID RAG DEBUG] Top ${topVectors.length} vectors selected (Plumb count: ${topVectors.filter(v => v.is_plumb).length})`);
 
@@ -702,7 +927,7 @@ async function hybridRetrieve(query, opts = {}) {
       temperature: 0.0,
       max_tokens: 200
     });
-    const raw = (eResp.choices[0].message.content || eResp.choices[0].text || '').replace(/^```/, '').replace(/```$/,'').trim();
+    const raw = (eResp.choices[0].message.content || eResp.choices[0].text || '').replace(/^```/, '').replace(/```$/, '').trim();
     qEntities = JSON.parse(raw);
     if (!Array.isArray(qEntities)) qEntities = [];
   } catch (e) {
@@ -751,16 +976,16 @@ async function hybridRetrieve(query, opts = {}) {
   // merge vector and graph candidates
   const mergedMap = {};
   for (const v of topVectors) {
-    mergedMap[v.id] = { 
-      chunk_id: v.id || v.chunk_id, 
-      content: v.content, 
-      doc_id: v.doc_id, 
-      vector_score: v.sim || 0, 
+    mergedMap[v.id] = {
+      chunk_id: v.id || v.chunk_id,
+      content: v.content,
+      doc_id: v.doc_id,
+      vector_score: v.sim || 0,
       graph_score: graphChunkScores[v.id] || 0,
       is_plumb: v.is_plumb || false
     };
   }
-  
+
   if (adminDb) {
     for (const [cid, gs] of Object.entries(graphChunkScores)) {
       if (!mergedMap[cid]) {
@@ -777,7 +1002,7 @@ async function hybridRetrieve(query, opts = {}) {
   const merged = Object.values(mergedMap).map(item => {
     item.final_score = alpha * (item.vector_score || 0) + (1 - alpha) * (item.graph_score || 0);
     return item;
-  }).sort((a,b) => b.final_score - a.final_score);
+  }).sort((a, b) => b.final_score - a.final_score);
 
   // DEBUG: Log Plumb usage in hybrid retrieval
   const plumbCount = merged.filter(m => m.is_plumb).length;
@@ -786,7 +1011,7 @@ async function hybridRetrieve(query, opts = {}) {
     const topPlumb = merged.filter(m => m.is_plumb).slice(0, 3);
     console.log(`🔍 [HYBRID RAG DEBUG] Top Plumb results in hybrid retrieval:`);
     topPlumb.forEach((p, i) => {
-      console.log(`   ${i+1}. Score: ${p.final_score.toFixed(4)} | ${p.doc_id} | "${p.content.substring(0, 60)}..."`);
+      console.log(`   ${i + 1}. Score: ${p.final_score.toFixed(4)} | ${p.doc_id} | "${p.content.substring(0, 60)}..."`);
     });
   }
 
@@ -796,7 +1021,7 @@ async function hybridRetrieve(query, opts = {}) {
 // ------------- Reranker (LLM) and composition -------------
 async function llmRerank(query, candidates) {
   try {
-    const blocks = candidates.map((c, i) => `${i+1}. [${c.chunk_id}] (${c.doc_id})\n${c.content.slice(0, 400)}`).join('\n\n');
+    const blocks = candidates.map((c, i) => `${i + 1}. [${c.chunk_id}] (${c.doc_id})\n${c.content.slice(0, 400)}`).join('\n\n');
     const prompt = `Rate how well each passage answers the query "${query}". Return a JSON array [{"chunk_id":"...","score":0.0}] with score 0..1.\n\nPassages:\n${blocks}\n\nReturn only JSON.`;
     const resp = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -805,16 +1030,16 @@ async function llmRerank(query, candidates) {
       max_tokens: 800
     });
     let raw = (resp.choices[0].message.content || resp.choices[0].text || '').trim();
-    
+
     // Remove markdown code fences if present
     raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-    
+
     // Try to extract JSON array if there's extra text
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       raw = jsonMatch[0];
     }
-    
+
     let json = [];
     try {
       json = JSON.parse(raw);
@@ -839,17 +1064,17 @@ async function composeSOAPWithEvidence(query, topCandidates, previousNotes = [],
   try {
     // Handle empty candidates gracefully
     const topK = topCandidates && topCandidates.length > 0 ? topCandidates.slice(0, 8) : [];
-    const context = topK.length > 0 
-      ? topK.map((c, i) => `${i+1}. [${c.chunk_id || c.id || 'unknown'}] (${c.doc_id || 'unknown'})\n${c.content || ''}`).join('\n\n')
+    const context = topK.length > 0
+      ? topK.map((c, i) => `${i + 1}. [${c.chunk_id || c.id || 'unknown'}] (${c.doc_id || 'unknown'})\n${c.content || ''}`).join('\n\n')
       : 'No relevant evidence passages found. Generate SOAP note based on the transcript alone.';
-    
+
     // Add Plumb context if available
     let plumbSection = '';
     if (plumbContext && plumbContext.length > 0) {
       plumbSection = `\n\nPLUMB DRUG HANDBOOK REFERENCE (for Plan section):
-${plumbContext.map((p, i) => `${i+1}. [${p.chunk_id || p.id}]\n${p.content}`).join('\n\n')}`;
+${plumbContext.map((p, i) => `${i + 1}. [${p.chunk_id || p.id}]\n${p.content}`).join('\n\n')}`;
     }
-    
+
     const system = `You are a veterinary medical scribe. Generate a JSON SOAP note from the consultation transcript. ${topK.length > 0 ? 'Use the evidence passages provided when available.' : 'Generate the SOAP note based on the transcript content.'} For each claim include the supporting chunk_id(s) if evidence is provided. If no evidence is available, generate based on the transcript content.
 
 IMPORTANT: For the Plan section, prioritize using information from the PLUMB DRUG HANDBOOK REFERENCE if provided. Include specific drug names, dosages, and administration instructions from the Plumb reference when available.`;
@@ -871,7 +1096,7 @@ Extract information from the consultation transcript. Use concise medical langua
       temperature: 0.0,
       max_tokens: 1500
     });
-    let out = (resp.choices[0].message.content || resp.choices[0].text || '').replace(/^```/, '').replace(/```$/,'').trim();
+    let out = (resp.choices[0].message.content || resp.choices[0].text || '').replace(/^```/, '').replace(/```$/, '').trim();
     try {
       const parsed = JSON.parse(out);
       return { parsed, raw: out };
@@ -917,11 +1142,11 @@ app.post('/api/generate-soap', async (req, res) => {
     if (adminDb) {
       try {
         hr = await hybridRetrieve(transcript, { vectorTopK: 20, sampleSize: 400, graphHops: 2, alpha: 0.75 });
-        
+
         // Rerank top merged candidates with LLM
         const topMerged = hr.merged.slice(0, 20);
         rerankedCandidates = await llmRerank(transcript, topMerged);
-        rerankedCandidates.sort((a,b) => b.rerank_score - a.rerank_score);
+        rerankedCandidates.sort((a, b) => b.rerank_score - a.rerank_score);
       } catch (retrievalErr) {
         console.warn('⚠️ Hybrid retrieval failed, continuing without RAG context:', retrievalErr.message);
         hr = null;
@@ -937,7 +1162,7 @@ app.post('/api/generate-soap', async (req, res) => {
 
     // Extract SOAP sections from the parsed response
     const soapData = composeRes.parsed || {};
-    
+
     // Build response matching frontend expectations
     // Frontend expects: { soapNote: { subjective, objective, assessment, plan } } or { subjective, objective, assessment, plan }
     // NOTE: Plan should be empty when generating SOA - it should only be generated via /api/generate-plan
@@ -971,7 +1196,7 @@ app.post('/api/generate-soap', async (req, res) => {
 app.post('/api/generate-plan', async (req, res) => {
   try {
     const { assessment, diagnosis, symptoms, subjective, objective, k = 5 } = req.body;
-    
+
     // Build query from SOA sections (Subjective, Objective, Assessment)
     // Prioritize: Assessment > Diagnosis > Symptoms, and include Subjective/Objective if available
     let queryParts = [];
@@ -980,7 +1205,7 @@ app.post('/api/generate-plan', async (req, res) => {
     if (assessment) queryParts.push(`Assessment: ${assessment}`);
     if (diagnosis && !assessment) queryParts.push(`Diagnosis: ${diagnosis}`);
     if (symptoms && !subjective) queryParts.push(`Symptoms: ${symptoms}`);
-    
+
     if (queryParts.length === 0) {
       return res.status(400).json({ error: 'At least one of: assessment, diagnosis, symptoms, subjective, or objective is required' });
     }
@@ -1041,13 +1266,13 @@ Keep it very brief.`;
     }
 
     // Use LLM to synthesize a treatment plan from Plumb references
-    const plumbContext = plumbResults.map((p, i) => `${i+1}. ${p.content}`).join('\n\n');
-    
+    const plumbContext = plumbResults.map((p, i) => `${i + 1}. ${p.content}`).join('\n\n');
+
     // DEBUG: Log that Plumb references are being used
     console.log(`🔍 [PLUMB RAG DEBUG] Using ${plumbResults.length} Plumb references to generate plan`);
     console.log(`🔍 [PLUMB RAG DEBUG] Plumb context length: ${plumbContext.length} characters`);
     console.log(`🔍 [PLUMB RAG DEBUG] First Plumb reference preview: "${plumbResults[0]?.content?.substring(0, 150)}..."`);
-    
+
     const systemPrompt = `You are a veterinary expert. Create a brief, structured treatment plan based on the Plumb's Veterinary Drug Handbook references provided.`;
     const userPrompt = `Based on veterinary drug information for "${soaQuery}":
 
@@ -1064,7 +1289,7 @@ Create a brief treatment plan:
 - Recheck timeframe and monitoring
 
 Keep it very brief.`;
-    
+
     console.log(`🔍 [PLUMB RAG DEBUG] Sending ${plumbResults.length} Plumb references to LLM for plan generation`);
 
     const llmResp = await openai.chat.completions.create({
@@ -1122,7 +1347,7 @@ app.post('/api/vector-search', async (req, res) => {
       const sim = cosineSimilarity(qEmb, emb);
       all.push({ id: doc.id, content: d.content, doc_id: d.doc_id, similarity: sim, distance: 1 - sim });
     });
-    const results = all.sort((a,b) => b.similarity - a.similarity).slice(0, limit);
+    const results = all.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
 
     let llmResponse = null;
     if (results.length > 0) {
@@ -1152,7 +1377,7 @@ app.post('/api/vector-search', async (req, res) => {
 // helper: process results into a small LLM-generated plan (used by vector search endpoint)
 async function processResultsWithLLM(query, results) {
   try {
-    const context = results.map((r, i) => `${i+1}. ${r.doc_id} (Sim: ${r.similarity.toFixed(3)})\n${r.content}`).join('\n\n');
+    const context = results.map((r, i) => `${i + 1}. ${r.doc_id} (Sim: ${r.similarity.toFixed(3)})\n${r.content}`).join('\n\n');
     const prompt = `Based on veterinary information for "${query}":\n\nSEARCH RESULTS:\n${context}\n\nCreate a brief treatment plan (3-4 meds with dosages, follow-up). Keep it brief.`;
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -1274,7 +1499,7 @@ async function processLocalPdfDirectory(dirPath, outputJsonPath = PLUMB_DATA_PAT
       for (let i = 0; i < localChunks.length; i += batchSize) {
         const slice = localChunks.slice(i, i + batchSize);
         // call OpenAI embeddings
-        console.log(`    • embedding batch ${Math.floor(i/batchSize)+1} for ${slice.length} chunks...`);
+        console.log(`    • embedding batch ${Math.floor(i / batchSize) + 1} for ${slice.length} chunks...`);
         const embResp = await openai.embeddings.create({
           model: 'text-embedding-3-small',
           input: slice

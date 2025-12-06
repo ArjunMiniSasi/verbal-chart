@@ -47,7 +47,9 @@ export const SOAPEditor = () => {
 
     setIsGenerating(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/generate-soap`, {
+      // Cloud Functions: /generateSoap (no /api/ prefix, camelCase)
+      const endpoint = API_BASE_URL.includes('cloudfunctions.net') ? '/generateSoap' : '/api/generate-soap';
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -105,8 +107,9 @@ export const SOAPEditor = () => {
     console.log('🚀 Assessment text:', soapNote.assessment);
 
     try {
-      // Use the new /api/generate-plan endpoint that uses Plumb data
-      const response = await fetch(`${API_BASE_URL}/api/generate-plan`, {
+      // Cloud Functions: /generatePlan (no /api/ prefix, camelCase)
+      const endpoint = API_BASE_URL.includes('cloudfunctions.net') ? '/generatePlan' : '/api/generate-plan';
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
