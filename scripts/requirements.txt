@@ -1,5 +1,5 @@
 # Requirements for Plumb PDF processing
-chromadb>=0.4.0
+# Note: chromadb is optional (only used for testing)
 openai>=1.0.0
 PyPDF2>=3.0.0
 

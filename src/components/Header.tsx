@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Activity, RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useNavigate } from "react-router-dom";
 
@@ -20,7 +20,11 @@ export const Header = () => {
             onClick={() => navigate('/')} 
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
-            <Activity className="h-6 w-6 text-medical-primary" />
+            <img 
+              src="/assets/medora-logo.svg" 
+              alt="Medora AI Logo" 
+              className="h-6 w-6"
+            />
             <h1 className="text-xl font-semibold text-foreground">AI Medical Scribe</h1>
           </button>
           <span className="text-sm text-muted-foreground">

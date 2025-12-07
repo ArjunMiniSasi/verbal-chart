@@ -38,9 +38,11 @@ export const DoctorHeader = () => {
         {/* Logo and App Name */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-medical-primary rounded-lg flex items-center justify-center">
-              <Activity className="h-5 w-5 text-white" />
-            </div>
+            <img 
+              src="/assets/medora-logo.svg" 
+              alt="Medora AI Logo" 
+              className="h-8 w-8"
+            />
             <h1 className="text-xl font-bold text-foreground">Medora</h1>
           </div>
         </div>

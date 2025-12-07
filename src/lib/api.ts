@@ -18,13 +18,15 @@ export interface TranscriptionError {
 
 export const transcribeAudio = async (audioFile: File): Promise<TranscriptionResponse> => {
   console.log('🎤 Starting transcription for file:', audioFile.name, 'Size:', audioFile.size);
-  console.log('🌐 API URL:', `${API_BASE_URL}/api/transcribe`);
-  
+  // Cloud Functions: /transcribe (no /api/ prefix, camelCase)
+  const endpoint = API_BASE_URL.includes('cloudfunctions.net') ? '/transcribe' : '/api/transcribe';
+  console.log('🌐 API URL:', `${API_BASE_URL}${endpoint}`);
+
   const formData = new FormData();
   formData.append('audio', audioFile);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/transcribe`, {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       body: formData,
     });
@@ -48,6 +50,11 @@ export const transcribeAudio = async (audioFile: File): Promise<TranscriptionRes
 
 export const checkServerHealth = async (): Promise<boolean> => {
   try {
+    // Cloud Functions don't have a /health endpoint, skip health check for Cloud Functions
+    if (API_BASE_URL.includes('cloudfunctions.net')) {
+      console.log('🏥 Skipping health check for Cloud Functions');
+      return true; // Assume Cloud Functions are healthy
+    }
     console.log('🏥 Checking server health at:', `${API_BASE_URL}/health`);
     const response = await fetch(`${API_BASE_URL}/health`);
     console.log('🏥 Health check response:', response.status, response.statusText);
@@ -97,17 +104,19 @@ export const generateSoapNote = async (transcript: string, previousNotes: SoapNo
   console.log('📝 Transcript length:', transcript.length);
   console.log('📝 Transcript preview:', transcript.substring(0, 100) + '...');
   console.log('📚 Previous notes count:', previousNotes.length);
-  console.log('🌐 API URL:', `${API_BASE_URL}/api/generate-soap`);
+  // Cloud Functions: /generateSoap (no /api/ prefix, camelCase)
+  const endpoint = API_BASE_URL.includes('cloudfunctions.net') ? '/generateSoap' : '/api/generate-soap';
+  console.log('🌐 API URL:', `${API_BASE_URL}${endpoint}`);
 
   try {
     const requestBody = {
       transcript,
       previousNotes
     };
-    
+
     console.log('📤 Request body:', requestBody);
 
-    const response = await fetch(`${API_BASE_URL}/api/generate-soap`, {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

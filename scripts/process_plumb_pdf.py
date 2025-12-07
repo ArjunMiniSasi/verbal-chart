@@ -12,14 +12,21 @@ import time
 
 # Install required packages if not already installed
 try:
-    import chromadb
     from openai import OpenAI
     from PyPDF2 import PdfReader
 except ImportError as e:
     print(f"❌ Missing required package: {e}")
     print("Please install required packages:")
-    print("pip install chromadb openai PyPDF2")
+    print("pip install openai PyPDF2")
     sys.exit(1)
+
+# Chromadb is optional (only used for testing, not for generating embeddings)
+try:
+    import chromadb
+    CHROMADB_AVAILABLE = True
+except ImportError:
+    CHROMADB_AVAILABLE = False
+    print("ℹ️  chromadb not available (optional - only used for testing)")
 
 def load_pdf(file_path):
     """Extract text from PDF file"""

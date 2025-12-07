@@ -9,6 +9,7 @@ import PatientTemplate from "./pages/PatientTemplate";
 import Index from "./pages/Index";
 import Search from "./pages/Search";
 import { Visit } from "./pages/Visit";
+import NewSOAP from "./pages/NewSOAP";
 import TestPage from "./pages/TestPage";
 import NotFound from "./pages/NotFound";
 
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/search" element={<Search />} />
           <Route path="/demo" element={<Index />} />
           <Route path="/visit/:patientId" element={<Visit />} />
+          <Route path="/new-soap" element={<NewSOAP />} />
           <Route path="/test" element={<TestPage />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
