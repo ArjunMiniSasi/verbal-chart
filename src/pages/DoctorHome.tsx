@@ -3,7 +3,6 @@ import { DoctorHeader } from "@/components/DoctorHeader"
 import { SearchBar } from "@/components/SearchBar"
 import { AddPatientModal } from "@/components/AddPatientModal"
 import { PatientCard } from "@/components/PatientCard"
-import { AnalyticsWidget } from "@/components/AnalyticsWidget"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,8 +20,7 @@ import {
   TrendingUp,
   Activity,
   CheckCircle,
-  AlertCircle,
-  Home
+  AlertCircle
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useMedoraStore } from "@/stores/medoraStore"
@@ -54,52 +52,57 @@ const DoctorHome = () => {
     weeklyGrowth: 12.5
   }
 
-  const handleViewAllPatients = () => {
-    navigate('/patients')
-  }
 
   return (
     <div className="min-h-screen bg-background">
       <DoctorHeader />
       
       <div className="container mx-auto px-6 py-8">
-        {/* Welcome Section with Quick Actions */}
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
-            <div className="flex items-center gap-3">
+        {/* Welcome, Search and Quick Actions - Aligned */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Left: Welcome + Search Section */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Welcome Section */}
+            <div>
+              <h1 className="text-3xl font-bold text-foreground mb-2">
+                Welcome back, Dr. Smith
+              </h1>
+              <p className="text-muted-foreground">
+                Here's what's happening with your patients today.
+              </p>
+            </div>
+
+            {/* Search Section */}
+            <div className="space-y-4">
               <div>
-                <h1 className="text-3xl font-bold text-foreground mb-2">
-                  Welcome back, Dr. Smith
-                </h1>
-                <p className="text-muted-foreground">
-                  Here's what's happening with your patients today.
+                <h2 className="text-xl font-semibold text-foreground mb-2">
+                  Search Patient Records
+                </h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Find patients, SOAP notes, and case sheets quickly
                 </p>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/')}
-                className="h-8 w-8 p-0 opacity-40 hover:opacity-100"
-                title="Visit Website"
-              >
-                <Home className="h-4 w-4" />
-              </Button>
+              <div className="w-full">
+                <SearchBar />
+              </div>
             </div>
-            {/* Quick Actions - Top Right */}
-            <Card className="w-full lg:w-80">
+          </div>
+
+          {/* Right: Quick Actions Card - Aligned with Welcome/Search */}
+          <div className="lg:col-span-1">
+            <Card className="h-full">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Plus className="h-5 w-5 text-medical-primary" />
+                <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                  <Plus className="h-5 w-5 text-blue-600" />
                   Quick Actions
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 <AddPatientModal />
-                
                 <div className="grid grid-cols-2 gap-3">
                   <Button 
                     variant="outline" 
-                    className="gap-2"
+                    className="gap-2 w-full"
                     onClick={() => {
                       clearSOAPNote()
                       clearTranscript()
@@ -111,7 +114,7 @@ const DoctorHome = () => {
                   </Button>
                   <Button 
                     variant="outline" 
-                    className="gap-2"
+                    className="gap-2 w-full"
                     onClick={() => setShowScheduleModal(true)}
                   >
                     <Calendar className="h-4 w-4" />
@@ -123,35 +126,12 @@ const DoctorHome = () => {
           </div>
         </div>
 
-        {/* Search Section */}
-        <div className="mb-8">
-          <div className="text-center mb-6">
-            <h2 className="text-xl font-semibold mb-2">Search Patient Records</h2>
-            <p className="text-muted-foreground">
-              Find patients, SOAP notes, and case sheets quickly
-            </p>
-          </div>
-          <div className="flex justify-center">
-            <div className="w-full max-w-2xl">
-              <SearchBar />
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="mb-8">
-          <AnalyticsWidget data={analyticsData} variant="overview" />
-        </div>
-
-        {/* Main Content Grid */}
+        {/* Main Content Grid - Today's Patients and Week Stats Side by Side */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Left Column - Patient Management */}
+          {/* Left Column - Today's Patients */}
           <div className="lg:col-span-3 space-y-6">
-            <div className="flex items-center justify-between">
+            <div>
               <h2 className="text-xl font-semibold">Today's Patients</h2>
-              <Button variant="outline" onClick={handleViewAllPatients}>
-                View All
-              </Button>
             </div>
             
             {/* Patient Tabs */}
@@ -223,9 +203,8 @@ const DoctorHome = () => {
             </Tabs>
           </div>
 
-          {/* Right Column - Weekly Overview */}
+          {/* Right Column - Week Stats */}
           <div className="space-y-6">
-            {/* Weekly Overview */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

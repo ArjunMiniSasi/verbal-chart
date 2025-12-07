@@ -165,7 +165,7 @@ export const SearchBar = () => {
   }
 
   return (
-    <div className="relative w-full max-w-2xl mx-auto">
+    <div className="relative w-full">
       <form onSubmit={handleSubmit} className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -174,7 +174,7 @@ export const SearchBar = () => {
           value={query}
           onChange={handleInputChange}
           onFocus={() => query && setShowResults(true)}
-          className="pl-10 pr-4 py-3 text-base"
+          className="pl-10 pr-4 py-3 text-base w-full"
         />
         {isSearching && (
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2">

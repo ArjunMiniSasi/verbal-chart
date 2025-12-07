@@ -772,7 +772,11 @@ exports.generatePlan = functions
 SEARCH RESULTS:
 (No Plumb references available - using general veterinary knowledge)
 
-Create a brief treatment plan:
+Create a brief treatment plan with the following sections:
+
+*Diagnosis:*
+- Include the diagnosis if applicable based on the assessment and symptoms
+- If diagnosis is not clear or not applicable, write "Not applicable"
 
 *Plan:*
 - 3-4 medications with dosages (mg/kg) and frequency
@@ -815,7 +819,11 @@ SEARCH RESULTS:
 
 ${plumbContext}
 
-Create a brief treatment plan:
+Create a brief treatment plan with the following sections:
+
+*Diagnosis:*
+- Include the diagnosis if applicable based on the assessment and symptoms
+- If diagnosis is not clear or not applicable, write "Not applicable"
 
 *Plan:*
 - 3-4 medications with dosages (mg/kg) and frequency

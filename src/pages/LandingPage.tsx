@@ -5,7 +5,6 @@ import {
   FileText, 
   Clock, 
   DollarSign, 
-  Heart, 
   Shield, 
   ArrowRight, 
   Play,
@@ -76,9 +75,11 @@ const LandingPage = () => {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Heart className="w-5 h-5 text-white" />
-              </div>
+              <img 
+                src="/assets/medora-logo.svg" 
+                alt="Medora AI Logo" 
+                className="w-8 h-8"
+              />
               <span className="text-xl font-bold text-gray-900">Medora AI</span>
             </div>
 
@@ -126,8 +127,8 @@ const LandingPage = () => {
               </h1>
             <p className="text-xl md:text-2xl text-gray-600 mb-6 leading-relaxed">
               Transform consultations into complete veterinary documentation in seconds.
-            </p>
-            
+              </p>
+
             {/* Metrics That Move Forward */}
             <div className="mb-8">
               <p className="text-sm font-semibold text-gray-500 mb-4 uppercase tracking-wide">Metrics That Move Forward</p>
@@ -144,7 +145,7 @@ const LandingPage = () => {
                   <Smile className="w-4 h-4 inline mr-2" />
                   Satisfaction
                 </Badge>
-              </div>
+                </div>
               </div>
 
               {/* CTAs */}
@@ -230,7 +231,7 @@ const LandingPage = () => {
               </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Medora AI is designed to save you time, money, and make your practice more efficient.
-            </p>
+              </p>
           </div>
 
           {/* Feature Tabs */}
@@ -441,9 +442,11 @@ const LandingPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="col-span-1 md:col-span-2">
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Heart className="w-5 h-5 text-white" />
-                </div>
+                <img 
+                  src="/assets/medora-logo.svg" 
+                  alt="Medora AI Logo" 
+                  className="w-8 h-8"
+                />
                 <span className="text-xl font-bold text-gray-900">Medora AI</span>
               </div>
               <p className="text-gray-600 mb-4 max-w-md">
