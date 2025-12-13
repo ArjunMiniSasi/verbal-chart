@@ -342,49 +342,57 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
                 </div>
 
                 {/* Inventory Match Selection */}
-                {medication.inventory_matches && medication.inventory_matches.length > 0 ? (
-                  <div className="space-y-3">
-                    <Label htmlFor={`match-${index}`} className="text-sm font-semibold">
-                      Select Brand from Inventory:
-                    </Label>
-                    <Select
-                      value={selectedMatchId || ''}
-                      onValueChange={(value) => handleMatchSelect(medication.medication_name, value)}
-                    >
-                      <SelectTrigger id={`match-${index}`} className="w-full">
-                        <SelectValue placeholder="Select a brand from inventory..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {medication.inventory_matches.map((match) => {
-                          const stockStatus = getStockStatus(match);
-                          const StatusIcon = stockStatus.icon;
-                          
-                          return (
-                            <SelectItem key={match.inventory_id} value={match.inventory_id}>
-                              <div className="flex items-center justify-between w-full">
-                                <div className="flex items-center gap-2">
-                                  <StatusIcon className={`h-4 w-4 ${stockStatus.color}`} />
-                                  <span className="font-medium">{match.brand_name}</span>
-                                  <span className="text-gray-500">• {match.strength}</span>
-                                  <span className="text-gray-500">• {match.form}</span>
-                                </div>
-                                <div className="flex items-center gap-3 ml-4">
-                                  <Badge 
-                                    variant="outline" 
-                                    className={`text-xs ${stockStatus.bg} ${stockStatus.border} ${stockStatus.color}`}
-                                  >
-                                    {match.stock_quantity} {match.unit}
-                                  </Badge>
-                                  <span className="text-xs text-gray-500">
-                                    Match: {(match.match_score * 100).toFixed(0)}%
-                                  </span>
-                                </div>
-                              </div>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+                {(() => {
+                  // Filter matches to only show those with >= 70% match score
+                  const MIN_MATCH_SCORE = 0.70;
+                  const goodMatches = medication.inventory_matches?.filter(
+                    match => match.match_score >= MIN_MATCH_SCORE
+                  ) || [];
+
+                  if (goodMatches.length > 0) {
+                    return (
+                      <div className="space-y-3">
+                        <Label htmlFor={`match-${index}`} className="text-sm font-semibold">
+                          Select Brand from Inventory:
+                        </Label>
+                        <Select
+                          value={selectedMatchId || ''}
+                          onValueChange={(value) => handleMatchSelect(medication.medication_name, value)}
+                        >
+                          <SelectTrigger id={`match-${index}`} className="w-full">
+                            <SelectValue placeholder="Select a brand from inventory..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {goodMatches.map((match) => {
+                              const stockStatus = getStockStatus(match);
+                              const StatusIcon = stockStatus.icon;
+                              
+                              return (
+                                <SelectItem key={match.inventory_id} value={match.inventory_id}>
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="flex items-center gap-2">
+                                      <StatusIcon className={`h-4 w-4 ${stockStatus.color}`} />
+                                      <span className="font-medium">{match.brand_name}</span>
+                                      <span className="text-gray-500">• {match.strength}</span>
+                                      <span className="text-gray-500">• {match.form}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 ml-4">
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-xs ${stockStatus.bg} ${stockStatus.border} ${stockStatus.color}`}
+                                      >
+                                        {match.stock_quantity} {match.unit}
+                                      </Badge>
+                                      <span className="text-xs text-gray-500">
+                                        Match: {(match.match_score * 100).toFixed(0)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
 
                     {/* Selected Match Details */}
                     {selectedMatch && (
