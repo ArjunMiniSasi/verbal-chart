@@ -871,7 +871,67 @@ Extract information from the consultation transcript. Use concise medical langua
 
 // ============= ESSENTIAL CLOUD FUNCTIONS (3 ONLY) =============
 
-// 1. Transcribe Audio → Transcript
+// Helper function to translate text to English using GPT-4o-mini
+async function translateToEnglish(text, sourceLanguage) {
+  try {
+    // If already in English, return as-is
+    if (sourceLanguage === 'en' || sourceLanguage === 'english') {
+      console.log('✅ Text is already in English, skipping translation');
+      return {
+        translatedText: text,
+        wasTranslated: false,
+        sourceLanguage: sourceLanguage
+      };
+    }
+
+    console.log(`🌐 Translating from ${sourceLanguage} to English...`);
+    
+    const translationPrompt = `Translate the following veterinary consultation transcript from ${sourceLanguage} to English. 
+Maintain medical terminology accuracy and professional tone. Preserve all medical details, symptoms, and treatment information.
+
+Original text in ${sourceLanguage}:
+${text}
+
+Provide ONLY the English translation, no additional commentary.`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { 
+          role: 'system', 
+          content: 'You are a professional medical translator specializing in veterinary medicine. Translate accurately while preserving all medical information.' 
+        },
+        { role: 'user', content: translationPrompt }
+      ],
+      temperature: 0.1, // Low temperature for consistent, accurate translations
+      max_tokens: 2000
+    });
+
+    const translatedText = response.choices[0].message.content.trim();
+    
+    console.log('✅ Translation completed');
+    console.log('📝 Original length:', text.length);
+    console.log('📝 Translated length:', translatedText.length);
+
+    return {
+      translatedText: translatedText,
+      wasTranslated: true,
+      sourceLanguage: sourceLanguage
+    };
+
+  } catch (error) {
+    console.error('❌ Translation error:', error);
+    // Fallback: return original text if translation fails
+    return {
+      translatedText: text,
+      wasTranslated: false,
+      sourceLanguage: sourceLanguage,
+      translationError: error.message
+    };
+  }
+}
+
+// 1. Transcribe Audio → Transcript with English Translation
 exports.transcribe = functions
   .runWith({ timeoutSeconds: 540, memory: '2GB' })
   .https.onRequest(async (req, res) => {
