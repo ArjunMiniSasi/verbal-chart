@@ -495,11 +495,11 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
                           </AlertDescription>
                         </Alert>
 
-                        {/* Manual Entry Form */}
+                        {/* Manual Entry Form - Simplified */}
                         <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 space-y-4">
                           <div className="flex items-center gap-2 text-blue-900 font-semibold">
                             <FileText className="h-5 w-5" />
-                            <span>Manual Entry - Enter Brand Name for Prescription</span>
+                            <span>Medicine from Outside - Enter Details</span>
                           </div>
                           
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -512,40 +512,12 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
                                 type="text"
                                 value={prescription?.brand_name || ''}
                                 onChange={(e) => handleManualBrandEntry(medication.medication_name, e.target.value)}
-                                placeholder="Enter brand name..."
+                                placeholder="Enter brand name to be bought from outside..."
                                 className="border-blue-300 focus:border-blue-500"
                               />
                               <p className="text-xs text-gray-600">
                                 This will be added to the prescription PDF
                               </p>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor={`manual-strength-${index}`} className="text-sm font-semibold">
-                                Strength/Dosage
-                              </Label>
-                              <Input
-                                id={`manual-strength-${index}`}
-                                type="text"
-                                value={prescription?.strength || medication.dosage}
-                                onChange={(e) => handleManualFieldChange(medication.medication_name, 'strength', e.target.value)}
-                                placeholder="e.g., 500mg, 10ml"
-                                className="border-blue-300 focus:border-blue-500"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor={`manual-form-${index}`} className="text-sm font-semibold">
-                                Form
-                              </Label>
-                              <Input
-                                id={`manual-form-${index}`}
-                                type="text"
-                                value={prescription?.form || ''}
-                                onChange={(e) => handleManualFieldChange(medication.medication_name, 'form', e.target.value)}
-                                placeholder="e.g., Tablet, Syrup, Injection"
-                                className="border-blue-300 focus:border-blue-500"
-                              />
                             </div>
 
                             <div className="space-y-2">
@@ -567,18 +539,18 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
                           {/* Instructions for Manual Entry */}
                           <div className="space-y-2">
                             <Label htmlFor={`manual-instructions-${index}`} className="text-sm font-semibold">
-                              Additional Instructions
+                              Instructions (Optional)
                             </Label>
                             <Textarea
                               id={`manual-instructions-${index}`}
                               value={prescription?.instructions || ''}
                               onChange={(e) => handleInstructionsChange(medication.medication_name, e.target.value)}
                               placeholder="Any special instructions for this medication..."
-                              className="min-h-[80px] border-blue-300 focus:border-blue-500"
+                              className="min-h-[60px] border-blue-300 focus:border-blue-500"
                             />
                           </div>
 
-                          {/* Display extracted info */}
+                          {/* Display extracted info - Read only */}
                           <div className="grid grid-cols-3 gap-2 text-sm bg-white rounded p-3 border border-blue-200">
                             <div>
                               <span className="font-semibold text-gray-700">Dosage:</span>
