@@ -99,6 +99,7 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
 }) => {
   const [prescriptions, setPrescriptions] = useState<Record<string, PrescribedMedication>>({});
   const [selectedMatches, setSelectedMatches] = useState<Record<string, string>>({}); // medication_name -> inventory_id
+  const [manualEntries, setManualEntries] = useState<Record<string, boolean>>({}); // Track which medications are manually entered
 
   useEffect(() => {
     // Initialize prescriptions from extracted medications
