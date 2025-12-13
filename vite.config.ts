@@ -7,6 +7,10 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 3000,
+    hmr: {
+      host: "app-preview-114.preview.emergentagent.com",
+      protocol: "wss",
+    },
     watch: {
       usePolling: true,
       interval: 1000,
@@ -21,6 +25,14 @@ export default defineConfig({
         "**/dist/**",
       ],
     },
+  },
+  preview: {
+    host: "0.0.0.0",
+    port: 3000,
+    allowedHosts: [
+      "app-preview-114.preview.emergentagent.com",
+      ".preview.emergentagent.com",
+    ],
   },
   plugins: [react()],
   resolve: {
