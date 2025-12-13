@@ -564,8 +564,8 @@ ${soapNote.plan}
                   onClick={() => setShowPrescriptionTable(!showPrescriptionTable)}
                   className="flex items-center gap-2"
                 >
-                  <ShoppingCart className="h-4 w-4" />
-                  {showPrescriptionTable ? 'View Plan Text' : 'View Prescription Table'}
+                  <Clipboard className="h-4 w-4" />
+                  {showPrescriptionTable ? 'View Plan' : 'View Prescription'}
                 </Button>
               )}
             </div>
