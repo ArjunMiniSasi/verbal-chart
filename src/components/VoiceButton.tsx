@@ -155,8 +155,8 @@ export const VoiceButton = () => {
       setTranscript(result.text);
 
       toast({
-        title: "Transcription Complete",
-        description: `Successfully transcribed ${recordingTime}s of audio (${result.language})`,
+        title: "✅ Transcription Complete",
+        description: `Successfully transcribed ${recordingTime}s of audio in ${getLanguageName(result.language)}`,
       });
 
       // SOAP generation is now handled manually via the "Generate SOAP" button
