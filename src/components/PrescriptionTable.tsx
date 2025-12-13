@@ -181,6 +181,38 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
     }));
   };
 
+  const handleManualBrandEntry = (medicationName: string, brandName: string) => {
+    const medication = extractedMedications.find(m => m.medication_name === medicationName);
+    
+    setManualEntries(prev => ({ ...prev, [medicationName]: true }));
+    
+    setPrescriptions(prev => ({
+      ...prev,
+      [medicationName]: {
+        ...prev[medicationName],
+        inventory_id: `manual_${medicationName}_${Date.now()}`, // Generate unique ID for manual entry
+        brand_name: brandName,
+        strength: medication?.dosage || '',
+        form: 'Manual Entry',
+        stock_quantity: 999, // Set high number for manual entries
+        expiry_date: 'N/A',
+        cost_per_unit: 0
+      }
+    }));
+    
+    console.log('✅ Manual brand entry:', medicationName, brandName);
+  };
+
+  const handleManualFieldChange = (medicationName: string, field: string, value: string) => {
+    setPrescriptions(prev => ({
+      ...prev,
+      [medicationName]: {
+        ...prev[medicationName],
+        [field]: value
+      }
+    }));
+  };
+
   const getStockStatus = (match: InventoryMatch) => {
     if (!match.in_stock || match.stock_quantity === 0) {
       return { status: 'out', icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' };
