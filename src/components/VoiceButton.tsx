@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
 import { transcribeAudio } from "@/lib/api";
+import { getLanguageName } from "@/lib/languageNames";
 import { useState, useRef } from "react";
 
 export const VoiceButton = () => {
@@ -154,8 +155,8 @@ export const VoiceButton = () => {
       setTranscript(result.text);
 
       toast({
-        title: "Transcription Complete",
-        description: `Successfully transcribed ${recordingTime}s of audio (${result.language})`,
+        title: "✅ Transcription Complete",
+        description: `Successfully transcribed ${recordingTime}s of audio in ${getLanguageName(result.language)}`,
       });
 
       // SOAP generation is now handled manually via the "Generate SOAP" button

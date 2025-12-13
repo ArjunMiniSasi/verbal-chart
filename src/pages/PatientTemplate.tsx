@@ -31,7 +31,8 @@ import PetOwnerCard from "@/components/PetOwnerCard"
 import { PreviewModal } from "@/components/PreviewModal"
 import { useMedoraStore } from "@/stores/medoraStore"
 import { useToast } from "@/hooks/use-toast"
-import { Patient, mockPatients, mockHistoryRecords } from "@/mocks/seeds"
+import { Patient, mockPatients, mockHistoryRecords, HistoryRecord } from "@/mocks/seeds"
+import { fetchMedicalHistory } from "@/lib/medicalHistoryService"
 
 const PatientTemplate = () => {
   const { patientId } = useParams<{ patientId: string }>()
@@ -42,6 +43,8 @@ const PatientTemplate = () => {
   const [isRecording, setIsRecording] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [patientData, setPatientData] = useState<Patient | null>(null)
+  const [medicalHistory, setMedicalHistory] = useState<HistoryRecord[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showFollowUpModal, setShowFollowUpModal] = useState(false)
   const [scheduleDate, setScheduleDate] = useState('')
@@ -113,22 +116,51 @@ const PatientTemplate = () => {
         sessionStorage.removeItem('newPatientData')
       } catch (error) {
         console.error('Error parsing patient data from sessionStorage:', error)
-        // Fall through to mock data
-        const patientIndex = parseInt(patientId || '1') % mockPatients.length
-        const selectedPatient = mockPatients[patientIndex] || mockPatients[0]
+        // Fall through to mock data - find by ID
+        const selectedPatient = mockPatients.find(p => p.id === patientId) || 
+                               mockPatients.find(p => p.mrn === patientId) || 
+                               mockPatients[0]
         setPatientData(selectedPatient)
         setCurrentPatient(selectedPatient)
       }
     } else {
-      // Use mock data based on patientId
-      const patientIndex = parseInt(patientId || '1') % mockPatients.length
-      const selectedPatient = mockPatients[patientIndex] || mockPatients[0]
+      // Use mock data based on patientId - find by ID first, then MRN
+      const selectedPatient = mockPatients.find(p => p.id === patientId) || 
+                             mockPatients.find(p => p.mrn === patientId) || 
+                             mockPatients[0]
       
+      console.log('🔍 Loading patient:', selectedPatient.pet.name, 'for patientId:', patientId)
       setPatientData(selectedPatient)
       setCurrentPatient(selectedPatient)
     }
   }, [patientId, setCurrentPatient])
 
+  // Fetch medical history from Firestore when patient data loads
+  useEffect(() => {
+    const loadMedicalHistory = async () => {
+      if (!patientData?.pet?.name) return;
+      
+      setIsLoadingHistory(true);
+      try {
+        const records = await fetchMedicalHistory(patientData.pet.name, patientData.id);
+        setMedicalHistory(records);
+        console.log(`📚 Loaded ${records.length} medical records for ${patientData.pet.name}`);
+      } catch (error) {
+        console.error('Failed to load medical history:', error);
+        toast({
+          title: "Error Loading History",
+          description: "Could not load medical history. Using cached data.",
+          variant: "destructive"
+        });
+        // Fallback to mock data if Firebase fails
+        setMedicalHistory(mockHistoryRecords.filter(r => r.patientId === patientData.id));
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadMedicalHistory();
+  }, [patientData, toast]);
 
   const getSpeciesIcon = (species: string) => {
     switch (species) {
@@ -388,10 +420,21 @@ const PatientTemplate = () => {
               </TabsContent>
 
               <TabsContent value="history" className="space-y-6">
-                <MedicalHistory 
-                  patientId={patientData.id}
-                  historyRecords={mockHistoryRecords}
-                />
+                {isLoadingHistory ? (
+                  <Card>
+                    <CardContent className="flex items-center justify-center py-12">
+                      <div className="text-center">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-medical-primary" />
+                        <p className="text-muted-foreground">Loading medical history...</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <MedicalHistory 
+                    patientId={patientData.id}
+                    historyRecords={medicalHistory}
+                  />
+                )}
               </TabsContent>
             </Tabs>
           </div>

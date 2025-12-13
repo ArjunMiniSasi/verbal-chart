@@ -48,7 +48,7 @@ export const PatientCard = ({ patient, variant = 'default' }: PatientCardProps) 
   }
 
   const handleViewPatient = () => {
-    navigate(`/patient/${patient.mrn}`)
+    navigate(`/patient/${patient.id}`)
   }
 
   if (variant === 'compact') {
