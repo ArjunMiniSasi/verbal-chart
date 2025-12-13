@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import VoiceToSoapAnimation from '@/components/VoiceToSoapAnimation';
 
 const LandingPage = () => {
   const navigate = useNavigate();
