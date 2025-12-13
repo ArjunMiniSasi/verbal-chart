@@ -61,6 +61,40 @@ function cosineSimilarity(vecA, vecB) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// ============= MULTILINGUAL SUPPORT =============
+
+// ------------------ Transcript Normalization (Hindi / Hinglish → Clinical English) ------------------
+async function normalizeTranscriptToClinicalEnglish(transcript) {
+  const prompt = `
+You are a veterinary clinical language normalizer.
+
+The input transcript may be:
+- Spoken in Hindi or Hinglish (Roman Hindi)
+- Informal, conversational, or non-grammatical
+
+Your task:
+- Convert it into clear, concise clinical English
+- Preserve medical meaning exactly
+- Use standard veterinary terminology
+- Do NOT explain or annotate
+- Do NOT mention translation
+
+Return ONLY the normalized clinical English text.
+
+Transcript:
+"""${transcript}"""
+`.trim();
+
+  const resp = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.0,
+    max_tokens: 600
+  });
+
+  return (resp.choices[0].message.content || '').trim();
+}
+
 // ============= MEDICATION EXTRACTION & INVENTORY MATCHING =============
 
 // Normalize composition for matching (lowercase, remove special chars)
@@ -834,7 +868,22 @@ async function composeSOAPWithEvidence(query, topCandidates, previousNotes = [],
 ${plumbContext.map((p, i) => `${i + 1}. [${p.chunk_id || p.id}]\n${p.content}`).join('\n\n')}`;
     }
 
-    const system = `You are a veterinary medical scribe. Generate a JSON SOAP note from the consultation transcript. ${topK.length > 0 ? 'Use the evidence passages provided when available.' : 'Generate the SOAP note based on the transcript content.'} For each claim include the supporting chunk_id(s) if evidence is provided. If no evidence is available, generate based on the transcript content.
+    const system = `
+You are a veterinary medical scribe.
+
+The consultation transcript may have originated from Hindi or Hinglish speech and has already been normalized into clinical English.
+
+Your task:
+- Generate a professional veterinary SOAP note in JSON
+- Use concise medical terminology
+- Use evidence passages when provided
+- Do NOT invent findings, diagnoses, or treatments
+- Do NOT mention translation or language
+
+IMPORTANT:
+- Preserve clinical intent
+- Keep assessment medically precise
+- Plan section must align with Plumb references when available
 
 IMPORTANT: For the Plan section, prioritize using information from the PLUMB DRUG HANDBOOK REFERENCE if provided. Include specific drug names, dosages, and administration instructions from the Plumb reference when available.`;
     const userPrompt = `Consultation Transcript: ${query}
@@ -1004,13 +1053,22 @@ exports.generateSoap = functions
 
       console.log('📝 Processing transcript, length:', transcript.length);
 
+      // 🔁 Normalize Hindi / Hinglish transcript to clinical English for RAG + SOAP
+      let normalizedTranscript = transcript;
+      try {
+        normalizedTranscript = await normalizeTranscriptToClinicalEnglish(transcript);
+        console.log('🧠 Normalized transcript preview:', normalizedTranscript.slice(0, 200));
+      } catch (e) {
+        console.warn('⚠️ Transcript normalization failed, using raw transcript:', e.message);
+      }
+
       let hr = null;
       let rerankedCandidates = [];
       if (adminDb) {
         try {
-          hr = await hybridRetrieve(transcript, { vectorTopK: 20, sampleSize: 400, graphHops: 2, alpha: 0.75 });
+          hr = await hybridRetrieve(normalizedTranscript, { vectorTopK: 20, sampleSize: 400, graphHops: 2, alpha: 0.75 });
           const topMerged = hr.merged.slice(0, 20);
-          rerankedCandidates = await llmRerank(transcript, topMerged);
+          rerankedCandidates = await llmRerank(normalizedTranscript, topMerged);
           rerankedCandidates.sort((a, b) => b.rerank_score - a.rerank_score);
         } catch (retrievalErr) {
           console.warn('⚠️ Hybrid retrieval failed, continuing without RAG context:', retrievalErr.message);
@@ -1019,7 +1077,7 @@ exports.generateSoap = functions
       }
 
       const topCandidates = rerankedCandidates.length > 0 ? rerankedCandidates.slice(0, 12) : [];
-      const composeRes = await composeSOAPWithEvidence(transcript, topCandidates, previousNotes || [], []);
+      const composeRes = await composeSOAPWithEvidence(normalizedTranscript, topCandidates, previousNotes || [], []);
 
       const soapData = composeRes.parsed || {};
       const response = {
