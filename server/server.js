@@ -144,6 +144,39 @@ function cosineSimilarity(vecA, vecB) {
 }
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// ------------------ Transcript Normalization (Hindi / Hinglish → Clinical English) ------------------
+async function normalizeTranscriptToClinicalEnglish(transcript) {
+  const prompt = `
+You are a veterinary clinical language normalizer.
+
+The input transcript may be:
+- Spoken in Hindi or Hinglish (Roman Hindi)
+- Informal, conversational, or non-grammatical
+
+Your task:
+- Convert it into clear, concise clinical English
+- Preserve medical meaning exactly
+- Use standard veterinary terminology
+- Do NOT explain or annotate
+- Do NOT mention translation
+
+Return ONLY the normalized clinical English text.
+
+Transcript:
+"""${transcript}"""
+`.trim();
+
+  const resp = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.0,
+    max_tokens: 600
+  });
+
+  return (resp.choices[0].message.content || '').trim();
+}
+
+
 // ------------- Transcript transcription endpoint -------------
 app.get('/health', (req, res) => res.json({ status: 'OK', message: 'Medora Backend running' }));
 
@@ -909,7 +942,23 @@ async function composeSOAPWithEvidence(query, topCandidates, previousNotes = [],
 ${plumbContext.map((p, i) => `${i+1}. [${p.chunk_id || p.id}]\n${p.content}`).join('\n\n')}`;
     }
     
-    const system = `You are a veterinary medical scribe. Generate a JSON SOAP note from the consultation transcript. ${topK.length > 0 ? 'Use the evidence passages provided when available.' : 'Generate the SOAP note based on the transcript content.'} For each claim include the supporting chunk_id(s) if evidence is provided. If no evidence is available, generate based on the transcript content.
+    //const system = `You are a veterinary medical scribe. Generate a JSON SOAP note from the consultation transcript. ${topK.length > 0 ? 'Use the evidence passages provided when available.' : 'Generate the SOAP note based on the transcript content.'} For each claim include the supporting chunk_id(s) if evidence is provided. If no evidence is available, generate based on the transcript content.
+    const system = `
+You are a veterinary medical scribe.
+
+The consultation transcript may have originated from Hindi or Hinglish speech and has already been normalized into clinical English.
+
+Your task:
+- Generate a professional veterinary SOAP note in JSON
+- Use concise medical terminology
+- Use evidence passages when provided
+- Do NOT invent findings, diagnoses, or treatments
+- Do NOT mention translation or language
+
+IMPORTANT:
+- Preserve clinical intent
+- Keep assessment medically precise
+- Plan section must align with Plumb references when available
 
 IMPORTANT: For the Plan section, prioritize using information from the PLUMB DRUG HANDBOOK REFERENCE if provided. Include specific drug names, dosages, and administration instructions from the Plumb reference when available.`;
     const userPrompt = `Consultation Transcript: ${query}
@@ -964,6 +1013,16 @@ app.post('/api/generate-soap', async (req, res) => {
 
     console.log('📝 Processing transcript, length:', transcript.length);
 
+    // 🔁 Normalize Hindi / Hinglish transcript to clinical English for RAG + SOAP
+    let normalizedTranscript = transcript;
+    try {
+      normalizedTranscript = await normalizeTranscriptToClinicalEnglish(transcript);
+      console.log('🧠 Normalized transcript preview:', normalizedTranscript.slice(0, 200));
+    } catch (e) {
+      console.warn('⚠️ Transcript normalization failed, using raw transcript');
+    }
+
+
     // Check if adminDb is available
     if (!adminDb) {
       console.warn('⚠️ adminDb not initialized, skipping hybrid retrieval');
@@ -975,7 +1034,7 @@ app.post('/api/generate-soap', async (req, res) => {
     let rerankedCandidates = [];
     if (adminDb) {
       try {
-        hr = await hybridRetrieve(transcript, { vectorTopK: 20, sampleSize: 400, graphHops: 2, alpha: 0.75 });
+        hr = await hybridRetrieve(normalizedTranscript, { vectorTopK: 20, sampleSize: 400, graphHops: 2, alpha: 0.75 });
         
         // Rerank top merged candidates with LLM
         const topMerged = hr.merged.slice(0, 20);
@@ -992,7 +1051,7 @@ app.post('/api/generate-soap', async (req, res) => {
 
     // Compose SOAP grounded in evidence (SOA only, no Plan)
     const topCandidates = rerankedCandidates.length > 0 ? rerankedCandidates.slice(0, 12) : [];
-    const composeRes = await composeSOAPWithEvidence(transcript, topCandidates, previousNotes || [], []);
+    const composeRes = await composeSOAPWithEvidence(normalizedTranscript, topCandidates, previousNotes || [], []);
 
     // Extract SOAP sections from the parsed response
     const soapData = composeRes.parsed || {};
@@ -1265,7 +1324,10 @@ function evidenceExtractionPrompt(transcript) {
 You are a precise veterinary evidence extractor. Read the transcript below and extract every clinician- or owner-reported
 clinical fact that could be relevant to a SOAP note. 
 
-IMPORTANT: You must respond with ONLY valid JSON, no markdown, no code fences, no explanatory text.
+IMPORTANT:
+- Transcript may originate from Hindi or Hinglish speech
+- Normalize symptoms into standard medical terms (e.g., "sust" → "lethargy")
+- Respond with ONLY valid JSON, no markdown, no code fences, no explanatory text.
 
 Output a JSON object with an "evidence" array. Each evidence item must include:
 - "type": one of ["symptom","finding","history","exposure","medication","other"]
