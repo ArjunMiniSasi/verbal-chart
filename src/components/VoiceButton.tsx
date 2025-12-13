@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
 import { transcribeAudio } from "@/lib/api";
+import { getLanguageName } from "@/lib/languageNames";
 import { useState, useRef } from "react";
 
 export const VoiceButton = () => {
