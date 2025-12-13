@@ -192,8 +192,8 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
         ...prev[medicationName],
         inventory_id: `manual_${medicationName}_${Date.now()}`, // Generate unique ID for manual entry
         brand_name: brandName,
-        strength: medication?.dosage || '',
-        form: 'Manual Entry',
+        strength: medication?.dosage || '', // Auto-fill from extracted dosage
+        form: medication?.route || 'Oral', // Auto-fill from extracted route
         stock_quantity: 999, // Set high number for manual entries
         expiry_date: 'N/A',
         cost_per_unit: 0
