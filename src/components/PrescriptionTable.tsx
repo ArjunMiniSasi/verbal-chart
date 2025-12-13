@@ -246,13 +246,13 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
   };
 
   const handleExportPDF = () => {
-    // Get all medications that have been selected from inventory (even if quantity is 0)
+    // Get all medications that have been selected from inventory OR manually entered
     const prescriptionArray = Object.values(prescriptions).filter(
-      p => p.inventory_id && p.inventory_id.trim() !== ''
+      p => p.inventory_id && p.inventory_id.trim() !== '' && p.brand_name && p.brand_name.trim() !== ''
     );
 
     if (prescriptionArray.length === 0) {
-      alert('No medications selected. Please select medications from inventory before exporting.');
+      alert('No medications added. Please select from inventory or enter brand names manually before exporting.');
       return;
     }
 
