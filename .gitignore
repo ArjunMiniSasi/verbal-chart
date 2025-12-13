@@ -33,3 +33,7 @@ server/.env
 *.njsproj
 *.sln
 *.sw?
+-e 
+# Environment files
+*.env
+*.env.*
