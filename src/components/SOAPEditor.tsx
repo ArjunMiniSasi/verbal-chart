@@ -570,13 +570,13 @@ ${soapNote.plan}
               )}
             </div>
 
-            {/* Tabs for Plan Text vs Prescription Table */}
+            {/* Tabs for Plan vs Prescription */}
             {extractedMedications.length > 0 ? (
               <Tabs value={showPrescriptionTable ? 'prescription' : 'plan'} onValueChange={(v) => setShowPrescriptionTable(v === 'prescription')}>
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="plan">Plan Text</TabsTrigger>
+                  <TabsTrigger value="plan">Plan</TabsTrigger>
                   <TabsTrigger value="prescription">
-                    Prescription Table
+                    Prescription
                     {extractedMedications.length > 0 && (
                       <Badge variant="secondary" className="ml-2">
                         {extractedMedications.length}
@@ -585,7 +585,7 @@ ${soapNote.plan}
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="plan" className="mt-4">
-                  {/* Original Plan Text View */}
+                  {/* Plan View */}
                   <div className="bg-gray-50 p-8 rounded-lg border border-gray-200">
                     {/* Timeline container */}
                     <div className="relative">
