@@ -283,7 +283,8 @@ export const SOAPEditor = () => {
       if (data.extracted_medications && data.extracted_medications.length > 0) {
         console.log('✅ Medications extracted and matched:', data.extracted_medications.length);
         setExtractedMedications(data.extracted_medications);
-        setShowPrescriptionTable(true);
+        // Always show Plan tab first, not Prescription
+        setShowPrescriptionTable(false);
         toast({
           title: "Plan Generated with Inventory Matching",
           description: `Found ${data.extracted_medications.length} medications with ${data.medications_with_matches || 0} inventory matches.`,
