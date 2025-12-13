@@ -732,7 +732,7 @@ ${soapNote.plan}
                   </div>
                 </TabsContent>
                 <TabsContent value="prescription" className="mt-4">
-                  {/* Prescription Table View */}
+                  {/* Prescription View */}
                   <PrescriptionTable
                     extractedMedications={extractedMedications}
                     patientId={currentPatient?.id}
