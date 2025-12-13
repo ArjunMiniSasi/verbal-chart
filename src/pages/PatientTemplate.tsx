@@ -132,6 +132,32 @@ const PatientTemplate = () => {
     }
   }, [patientId, setCurrentPatient])
 
+  // Fetch medical history from Firestore when patient data loads
+  useEffect(() => {
+    const loadMedicalHistory = async () => {
+      if (!patientData?.pet?.name) return;
+      
+      setIsLoadingHistory(true);
+      try {
+        const records = await fetchMedicalHistory(patientData.pet.name, patientData.id);
+        setMedicalHistory(records);
+        console.log(`📚 Loaded ${records.length} medical records for ${patientData.pet.name}`);
+      } catch (error) {
+        console.error('Failed to load medical history:', error);
+        toast({
+          title: "Error Loading History",
+          description: "Could not load medical history. Using cached data.",
+          variant: "destructive"
+        });
+        // Fallback to mock data if Firebase fails
+        setMedicalHistory(mockHistoryRecords.filter(r => r.patientId === patientData.id));
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadMedicalHistory();
+  }, [patientData, toast]);
 
   const getSpeciesIcon = (species: string) => {
     switch (species) {
