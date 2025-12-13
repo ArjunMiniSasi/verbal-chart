@@ -417,10 +417,21 @@ const PatientTemplate = () => {
               </TabsContent>
 
               <TabsContent value="history" className="space-y-6">
-                <MedicalHistory 
-                  patientId={patientData.id}
-                  historyRecords={mockHistoryRecords}
-                />
+                {isLoadingHistory ? (
+                  <Card>
+                    <CardContent className="flex items-center justify-center py-12">
+                      <div className="text-center">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-medical-primary" />
+                        <p className="text-muted-foreground">Loading medical history...</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <MedicalHistory 
+                    patientId={patientData.id}
+                    historyRecords={medicalHistory}
+                  />
+                )}
               </TabsContent>
             </Tabs>
           </div>
