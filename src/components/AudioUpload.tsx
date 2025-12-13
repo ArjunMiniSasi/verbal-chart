@@ -91,8 +91,8 @@ export const AudioUpload = () => {
       }
 
       toast({
-        title: "Transcription Complete",
-        description: `Successfully transcribed audio (${result.language}, ${result.duration?.toFixed(1)}s)`,
+        title: "✅ Transcription Complete",
+        description: `Successfully transcribed audio in ${getLanguageName(result.language)} (${result.duration?.toFixed(1)}s)`,
       })
 
       // SOAP generation is now handled manually via the "Generate SOAP" button
