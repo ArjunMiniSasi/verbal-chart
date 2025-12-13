@@ -997,6 +997,14 @@ exports.transcribe = functions
       console.log('📝 Text length:', transcription.text?.length || 0);
       console.log('🌐 Language:', transcription.language);
 
+      // Step 2: Translate to English if not already in English
+      console.log('🔄 Starting translation process...');
+      const translationResult = await translateToEnglish(
+        transcription.text, 
+        transcription.language
+      );
+      console.log('✅ Translation process completed');
+
       // Cleanup temp file
       try {
         if (tempFilePath && fs.existsSync(tempFilePath)) {
@@ -1008,8 +1016,10 @@ exports.transcribe = functions
       }
 
       res.json({
-        text: transcription.text,
-        language: transcription.language,
+        text: translationResult.translatedText,           // Translated text (or original if English)
+        originalText: transcription.text,                  // Keep original for reference
+        language: transcription.language,                  // Original detected language
+        wasTranslated: translationResult.wasTranslated,    // Flag indicating if translation occurred
         duration: transcription.duration,
         words: transcription.words || []
       });
