@@ -394,8 +394,8 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
                           </SelectContent>
                         </Select>
 
-                    {/* Selected Match Details */}
-                    {selectedMatch && (
+                        {/* Selected Match Details */}
+                        {selectedMatch && (
                       <div className={`p-4 rounded-lg border-2 ${getStockStatus(selectedMatch).border} ${getStockStatus(selectedMatch).bg}`}>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
