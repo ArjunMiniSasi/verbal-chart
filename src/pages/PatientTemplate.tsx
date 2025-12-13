@@ -116,17 +116,20 @@ const PatientTemplate = () => {
         sessionStorage.removeItem('newPatientData')
       } catch (error) {
         console.error('Error parsing patient data from sessionStorage:', error)
-        // Fall through to mock data
-        const patientIndex = parseInt(patientId || '1') % mockPatients.length
-        const selectedPatient = mockPatients[patientIndex] || mockPatients[0]
+        // Fall through to mock data - find by ID
+        const selectedPatient = mockPatients.find(p => p.id === patientId) || 
+                               mockPatients.find(p => p.mrn === patientId) || 
+                               mockPatients[0]
         setPatientData(selectedPatient)
         setCurrentPatient(selectedPatient)
       }
     } else {
-      // Use mock data based on patientId
-      const patientIndex = parseInt(patientId || '1') % mockPatients.length
-      const selectedPatient = mockPatients[patientIndex] || mockPatients[0]
+      // Use mock data based on patientId - find by ID first, then MRN
+      const selectedPatient = mockPatients.find(p => p.id === patientId) || 
+                             mockPatients.find(p => p.mrn === patientId) || 
+                             mockPatients[0]
       
+      console.log('🔍 Loading patient:', selectedPatient.pet.name, 'for patientId:', patientId)
       setPatientData(selectedPatient)
       setCurrentPatient(selectedPatient)
     }
