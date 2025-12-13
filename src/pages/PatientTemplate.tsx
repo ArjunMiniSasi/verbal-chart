@@ -31,7 +31,8 @@ import PetOwnerCard from "@/components/PetOwnerCard"
 import { PreviewModal } from "@/components/PreviewModal"
 import { useMedoraStore } from "@/stores/medoraStore"
 import { useToast } from "@/hooks/use-toast"
-import { Patient, mockPatients, mockHistoryRecords } from "@/mocks/seeds"
+import { Patient, mockPatients, mockHistoryRecords, HistoryRecord } from "@/mocks/seeds"
+import { fetchMedicalHistory } from "@/lib/medicalHistoryService"
 
 const PatientTemplate = () => {
   const { patientId } = useParams<{ patientId: string }>()
@@ -42,6 +43,8 @@ const PatientTemplate = () => {
   const [isRecording, setIsRecording] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [patientData, setPatientData] = useState<Patient | null>(null)
+  const [medicalHistory, setMedicalHistory] = useState<HistoryRecord[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showFollowUpModal, setShowFollowUpModal] = useState(false)
   const [scheduleDate, setScheduleDate] = useState('')
