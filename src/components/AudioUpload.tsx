@@ -7,6 +7,7 @@ import { Upload, FileAudio, Loader2, CheckCircle, AlertCircle } from "lucide-rea
 import { useMedoraStore } from "@/stores/medoraStore"
 import { useToast } from "@/hooks/use-toast"
 import { transcribeAudio, checkServerHealth } from "@/lib/api"
+import { getLanguageName } from "@/lib/languageNames"
 
 export const AudioUpload = () => {
   const [isUploading, setIsUploading] = useState(false)
