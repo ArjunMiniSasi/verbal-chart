@@ -1,0 +1,34 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "hospital_inventory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "composition_normalized",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "stock_quantity",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "hospital_inventory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "medicine_name",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "stock_quantity",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
+

@@ -61,6 +61,329 @@ function cosineSimilarity(vecA, vecB) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// ============= MEDICATION EXTRACTION & INVENTORY MATCHING =============
+
+// Normalize composition for matching (lowercase, remove special chars)
+function normalizeComposition(composition) {
+  if (!composition || typeof composition !== 'string') return '';
+  return composition
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Calculate string similarity using Levenshtein distance (normalized)
+function stringSimilarity(str1, str2) {
+  if (!str1 || !str2) return 0;
+  const s1 = str1.toLowerCase().trim();
+  const s2 = str2.toLowerCase().trim();
+  if (s1 === s2) return 1.0;
+  if (s1.includes(s2) || s2.includes(s1)) return 0.8;
+
+  // Simple Levenshtein-based similarity
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
+  const editDistance = levenshteinDistance(s1, s2);
+  return 1 - (editDistance / longer.length);
+}
+
+function levenshteinDistance(str1, str2) {
+  const matrix = [];
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[str2.length][str1.length];
+}
+
+// Extract medications from plan text using LLM
+async function extractMedicationsFromPlan(planText) {
+  try {
+    console.log('🔍 [MEDICATION EXTRACTION] Extracting medications from plan text...');
+
+    const extractionPrompt = `Extract all medications from this veterinary treatment plan. Return a JSON array with the following structure:
+[
+  {
+    "medication_name": "generic name (e.g., Amoxicillin)",
+    "dosage": "dosage with units (e.g., 10-20 mg/kg)",
+    "frequency": "frequency (e.g., BID, TID, QID, once daily)",
+    "duration": "duration if mentioned (e.g., 7-10 days, 2 weeks)",
+    "route": "oral/injection/topical/other",
+    "suggested_composition": "normalized active ingredient name (e.g., amoxicillin, carprofen)"
+  }
+]
+
+Extract only medications mentioned in the Plan section. If no medications are found, return an empty array [].
+
+Treatment Plan:
+${planText}
+
+Return ONLY valid JSON array, no additional text.`;
+
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You are a veterinary pharmacy assistant. Extract medication information accurately from treatment plans.' },
+        { role: 'user', content: extractionPrompt }
+      ],
+      temperature: 0.0,
+      max_tokens: 1000
+    });
+
+    let raw = (resp.choices[0].message.content || '').trim();
+    // Clean up JSON if wrapped in code blocks
+    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+
+    // Try to extract JSON array from response
+    const jsonMatch = raw.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      raw = jsonMatch[0];
+    }
+
+    const extracted = JSON.parse(raw);
+
+    if (!Array.isArray(extracted)) {
+      console.warn('⚠️ [MEDICATION EXTRACTION] Response is not an array, returning empty');
+      return [];
+    }
+
+    // Normalize composition for each medication
+    // Ensure we always have a normalized composition, even if extraction didn't provide one
+    const normalized = extracted.map(med => {
+      const medName = med.medication_name || '';
+      const suggestedComp = med.suggested_composition || medName;
+
+      return {
+        ...med,
+        medication_name: medName, // Ensure it's always a string
+        suggested_composition: normalizeComposition(suggestedComp) || normalizeComposition(medName)
+      };
+    });
+
+    console.log(`✅ [MEDICATION EXTRACTION] Extracted ${normalized.length} medications`);
+    normalized.forEach((med, idx) => {
+      console.log(`   ${idx + 1}. ${med.medication_name} - ${med.dosage} ${med.frequency}`);
+    });
+
+    return normalized;
+  } catch (error) {
+    console.error('❌ [MEDICATION EXTRACTION] Error extracting medications:', error);
+    console.error('   Error details:', error.message);
+    return []; // Return empty array on error - graceful fallback
+  }
+}
+
+// Match extracted medications with hospital inventory
+async function matchMedicationsWithInventory(extractedMedications) {
+  if (!adminDb || !extractedMedications || extractedMedications.length === 0) {
+    console.log('⚠️ [INVENTORY MATCHING] Skipping - no adminDb or no medications to match');
+    return [];
+  }
+
+  try {
+    console.log('🔍 [INVENTORY MATCHING] Matching medications with hospital inventory...');
+
+    const matchedMedications = [];
+
+    for (const medication of extractedMedications) {
+      // Ensure we have normalized values - be very defensive here
+      const medName = medication.medication_name || '';
+      const suggestedComp = medication.suggested_composition
+        ? normalizeComposition(medication.suggested_composition)
+        : normalizeComposition(medName);
+      const medNameNormalized = normalizeComposition(medName);
+
+      if (!suggestedComp && !medNameNormalized) {
+        console.warn(`⚠️ [INVENTORY MATCHING] No composition or name for medication, skipping match`);
+        matchedMedications.push({
+          ...medication,
+          inventory_matches: [],
+          no_match_found: true
+        });
+        continue;
+      }
+
+      const searchTerm = suggestedComp || medNameNormalized;
+      console.log(`🔍 [INVENTORY MATCHING] Searching for: ${medName} (composition: ${suggestedComp}, normalized name: ${medNameNormalized})`);
+
+      // Query inventory collection
+      // Try multiple matching strategies
+      let snapshot = null;
+
+      // Strategy 1: Exact match on composition_normalized (using suggested composition)
+      // NOTE: Query without stock_quantity filter to avoid composite index requirement
+      // We'll filter stock_quantity in memory instead
+      if (suggestedComp) {
+        snapshot = await adminDb.collection('hospital_inventory')
+          .where('composition_normalized', '==', suggestedComp)
+          .get();
+      }
+
+      // Strategy 2: If no match, try medicine_name (exact case-sensitive match first)
+      if ((!snapshot || snapshot.empty) && medName) {
+        snapshot = await adminDb.collection('hospital_inventory')
+          .where('medicine_name', '==', medName)
+          .get();
+      }
+
+      // Strategy 3: If still no match, try composition_normalized with normalized medicine name
+      if ((!snapshot || snapshot.empty) && medNameNormalized) {
+        snapshot = await adminDb.collection('hospital_inventory')
+          .where('composition_normalized', '==', medNameNormalized)
+          .get();
+      }
+
+      // Strategy 4: If still no exact match, get all items and filter by similarity
+      if (!snapshot || snapshot.empty) {
+        console.log(`   ⚠️ No exact match found, trying similarity matching...`);
+        snapshot = await adminDb.collection('hospital_inventory')
+          .get();
+      }
+
+      // Filter in memory for stock_quantity > 0 (applies to all strategies)
+      // This avoids needing composite indexes - CRITICAL FIX for investor demo
+      const filteredDocs = [];
+      if (snapshot && !snapshot.empty) {
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if ((data.stock_quantity || 0) > 0) {
+            filteredDocs.push(doc);
+          }
+        });
+      }
+
+      const matches = [];
+
+      // Process filtered documents (already filtered for stock_quantity > 0)
+      filteredDocs.forEach(doc => {
+        const item = doc.data();
+
+        // Get all possible normalized values from the item
+        const itemCompNormalized = item.composition_normalized || normalizeComposition(item.composition || '');
+        const itemMedNameNormalized = normalizeComposition(item.medicine_name || '');
+        const itemCompRaw = normalizeComposition(item.composition || '');
+
+        // Also normalize the medication name from extraction
+        const medNameNormalized = normalizeComposition(medication.medication_name || '');
+
+        // Calculate match score - try multiple matching strategies
+        let matchScore = 0;
+
+        // Strategy 1: Exact match on normalized composition
+        if (itemCompNormalized === suggestedComp || itemCompNormalized === medNameNormalized) {
+          matchScore = 1.0; // Exact match
+        }
+        // Strategy 2: Exact match on medicine name
+        else if (itemMedNameNormalized === medNameNormalized || itemMedNameNormalized === suggestedComp) {
+          matchScore = 1.0; // Exact match on medicine name
+        }
+        // Strategy 3: Contains match (composition)
+        else if (itemCompNormalized.includes(suggestedComp) || suggestedComp.includes(itemCompNormalized) ||
+          itemCompNormalized.includes(medNameNormalized) || medNameNormalized.includes(itemCompNormalized)) {
+          matchScore = 0.9; // Strong contains match
+        }
+        // Strategy 4: Contains match (medicine name)
+        else if (itemMedNameNormalized.includes(medNameNormalized) || medNameNormalized.includes(itemMedNameNormalized) ||
+          itemMedNameNormalized.includes(suggestedComp) || suggestedComp.includes(itemMedNameNormalized)) {
+          matchScore = 0.9; // Strong contains match
+        }
+        // Strategy 5: Raw composition match
+        else if (itemCompRaw === suggestedComp || itemCompRaw === medNameNormalized) {
+          matchScore = 0.95; // Very strong match
+        }
+        // Strategy 6: Similarity matching (fallback)
+        else {
+          const sim1 = stringSimilarity(suggestedComp, itemCompNormalized);
+          const sim2 = stringSimilarity(medNameNormalized, itemMedNameNormalized);
+          const sim3 = stringSimilarity(suggestedComp, itemMedNameNormalized);
+          const sim4 = stringSimilarity(medNameNormalized, itemCompNormalized);
+          matchScore = Math.max(sim1, sim2, sim3, sim4);
+        }
+
+        // Bonus for high stock
+        if (item.stock_quantity > item.min_stock_level * 2) {
+          matchScore += 0.1;
+        }
+        // Penalty for low stock
+        if (item.stock_quantity <= item.min_stock_level) {
+          matchScore -= 0.1;
+        }
+        // Penalty for near expiry (within 3 months)
+        if (item.expiry_date) {
+          const expiryDate = new Date(item.expiry_date);
+          const threeMonthsFromNow = new Date();
+          threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
+          if (expiryDate < threeMonthsFromNow) {
+            matchScore -= 0.1;
+          }
+        }
+
+        matchScore = Math.max(0, Math.min(1, matchScore)); // Clamp between 0 and 1
+
+        // Lower threshold to catch more matches - especially important for investor demo
+        // Include matches with score > 0.2 (was 0.3) to be more inclusive
+        if (matchScore > 0.2) {
+          matches.push({
+            inventory_id: doc.id,
+            brand_name: item.brand_name || 'Unknown',
+            composition: item.composition || item.medicine_name || '',
+            strength: item.strength || '',
+            form: item.form || '',
+            stock_quantity: item.stock_quantity || 0,
+            unit: item.unit || '',
+            expiry_date: item.expiry_date || '',
+            match_score: parseFloat(matchScore.toFixed(3)),
+            cost_per_unit: item.cost_per_unit || 0,
+            in_stock: (item.stock_quantity || 0) > 0,
+            low_stock_warning: (item.stock_quantity || 0) <= (item.min_stock_level || 0)
+          });
+        }
+      });
+
+      // Sort by match score (descending)
+      matches.sort((a, b) => b.match_score - a.match_score);
+
+      // Take top 5 matches
+      const topMatches = matches.slice(0, 5);
+
+      console.log(`   ✅ Found ${topMatches.length} matches for ${medication.medication_name} (top score: ${topMatches[0]?.match_score || 0})`);
+
+      matchedMedications.push({
+        ...medication,
+        inventory_matches: topMatches,
+        no_match_found: topMatches.length === 0
+      });
+    }
+
+    console.log(`✅ [INVENTORY MATCHING] Completed matching for ${matchedMedications.length} medications`);
+    return matchedMedications;
+  } catch (error) {
+    console.error('❌ [INVENTORY MATCHING] Error matching medications:', error);
+    // Return medications without matches on error - graceful fallback
+    return extractedMedications.map(med => ({
+      ...med,
+      inventory_matches: [],
+      no_match_found: true
+    }));
+  }
+}
+
 // File upload helper for Cloud Functions (using busboy)
 // Simplified and more reliable approach for Cloud Functions
 function parseMultipartFormData(req) {
@@ -798,12 +1121,35 @@ Keep it very brief.`;
 
         const planText = llmResp.choices[0].message.content || '';
 
-        return res.json({
+        // Base response
+        const baseResponse = {
           plan: planText,
           plumb_references: [],
           plumb_available: false,
           message: 'Plan generated without Plumb data (no references found in Firebase).'
-        });
+        };
+
+        // Try to extract medications and match with inventory (optional enhancement)
+        try {
+          console.log('🔍 [ENHANCEMENT] Attempting medication extraction and inventory matching...');
+          const extractedMedications = await extractMedicationsFromPlan(planText);
+
+          if (extractedMedications.length > 0) {
+            const matchedMedications = await matchMedicationsWithInventory(extractedMedications);
+            baseResponse.extracted_medications = matchedMedications;
+            baseResponse.inventory_matching_enabled = true;
+            baseResponse.total_medications_extracted = matchedMedications.length;
+            baseResponse.medications_with_matches = matchedMedications.filter(m => m.inventory_matches && m.inventory_matches.length > 0).length;
+            baseResponse.medications_without_matches = matchedMedications.filter(m => !m.inventory_matches || m.inventory_matches.length === 0).length;
+          } else {
+            baseResponse.extracted_medications = [];
+            baseResponse.inventory_matching_enabled = true;
+          }
+        } catch (enhancementError) {
+          console.warn('⚠️ [ENHANCEMENT] Medication extraction/matching failed:', enhancementError.message);
+        }
+
+        return res.json(baseResponse);
       }
 
       const plumbContext = plumbResults.map((p, i) => `${i + 1}. ${p.content}`).join('\n\n');
@@ -847,7 +1193,8 @@ Keep it very brief.`;
 
       const planText = llmResp.choices[0].message.content || '';
 
-      res.json({
+      // Base response
+      const baseResponse = {
         plan: planText,
         plumb_references: plumbResults.map(p => ({
           chunk_id: p.chunk_id || p.id,
@@ -855,7 +1202,35 @@ Keep it very brief.`;
           similarity: p.similarity
         })),
         plumb_available: true
-      });
+      };
+
+      // Try to extract medications and match with inventory (optional enhancement)
+      // This is done asynchronously and won't break the main flow if it fails
+      let extractedMedications = [];
+      try {
+        console.log('🔍 [ENHANCEMENT] Attempting medication extraction and inventory matching...');
+        extractedMedications = await extractMedicationsFromPlan(planText);
+
+        if (extractedMedications.length > 0) {
+          const matchedMedications = await matchMedicationsWithInventory(extractedMedications);
+          baseResponse.extracted_medications = matchedMedications;
+          baseResponse.inventory_matching_enabled = true;
+          baseResponse.total_medications_extracted = matchedMedications.length;
+          baseResponse.medications_with_matches = matchedMedications.filter(m => m.inventory_matches && m.inventory_matches.length > 0).length;
+          baseResponse.medications_without_matches = matchedMedications.filter(m => !m.inventory_matches || m.inventory_matches.length === 0).length;
+          console.log(`✅ [ENHANCEMENT] Added ${matchedMedications.length} medications with inventory matches`);
+        } else {
+          console.log('ℹ️ [ENHANCEMENT] No medications extracted from plan');
+          baseResponse.extracted_medications = [];
+          baseResponse.inventory_matching_enabled = true;
+        }
+      } catch (enhancementError) {
+        // Graceful fallback - don't break the main response
+        console.warn('⚠️ [ENHANCEMENT] Medication extraction/matching failed, returning base response:', enhancementError.message);
+        // Response will still work without extracted_medications
+      }
+
+      res.json(baseResponse);
     } catch (error) {
       console.error('generate-plan error', error);
       res.status(500).json({ error: 'generate-plan failed', message: error.message || String(error) });

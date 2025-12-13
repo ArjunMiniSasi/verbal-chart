@@ -2,10 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Eye, Download, Save, Loader2, Stethoscope, ClipboardList, Brain, Target, Pill, Calculator, FileSearch, Activity } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FileText, Eye, Download, Save, Loader2, Stethoscope, ClipboardList, Brain, Target, Pill, Calculator, FileSearch, Activity, ShoppingCart } from "lucide-react";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { PrescriptionTable } from "@/components/PrescriptionTable";
 
 // Use the same API base URL as other components
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -25,6 +27,8 @@ export const SOAPEditor = () => {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [extractedMedications, setExtractedMedications] = useState<any[]>([]);
+  const [showPrescriptionTable, setShowPrescriptionTable] = useState(false);
 
   const generateSOA = async () => {
     if (transcript.length === 0) {
@@ -275,16 +279,30 @@ export const SOAPEditor = () => {
       // Update the SOAP note with the generated plan
       updateSOAPNote('plan', generatedPlan);
       
+      // Check if medications were extracted and matched with inventory
+      if (data.extracted_medications && data.extracted_medications.length > 0) {
+        console.log('✅ Medications extracted and matched:', data.extracted_medications.length);
+        setExtractedMedications(data.extracted_medications);
+        setShowPrescriptionTable(true);
+        toast({
+          title: "Plan Generated with Inventory Matching",
+          description: `Found ${data.extracted_medications.length} medications with ${data.medications_with_matches || 0} inventory matches.`,
+          variant: "default"
+        });
+      } else {
+        setExtractedMedications([]);
+        setShowPrescriptionTable(false);
+        toast({
+          title: "Plan Generated Successfully",
+          description: data.plumb_available 
+            ? "Treatment plan has been generated using Plumb's Veterinary Drug Handbook."
+            : "Treatment plan generated (Plumb data not available, using general knowledge).",
+          variant: "default"
+        });
+      }
+      
       console.log('✅ Plan updated in store');
       console.log('✅ Plan length:', generatedPlan.length);
-      
-      toast({
-        title: "Plan Generated Successfully",
-        description: data.plumb_available 
-          ? "Treatment plan has been generated using Plumb's Veterinary Drug Handbook."
-          : "Treatment plan generated (Plumb data not available, using general knowledge).",
-        variant: "default"
-      });
 
     } catch (error) {
       console.error('Plan generation error:', error);
@@ -532,161 +550,347 @@ ${soapNote.plan}
         {/* Plan Section - Only show when plan is generated */}
         {soapNote.plan && soapNote.plan.trim().length > 0 && (
           <div className="space-y-6">
-            <div className="flex items-center gap-4 pb-4 border-b-2 border-green-200">
-              <Target className="h-7 w-7 text-green-600" />
-              <h2 className="text-2xl font-bold text-gray-900">Treatment Plan</h2>
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-3 py-1">
-                Plumb RAG Generated
-              </Badge>
+            <div className="flex items-center justify-between pb-4 border-b-2 border-green-200">
+              <div className="flex items-center gap-4">
+                <Target className="h-7 w-7 text-green-600" />
+                <h2 className="text-2xl font-bold text-gray-900">Treatment Plan</h2>
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-3 py-1">
+                  Plumb RAG Generated
+                </Badge>
+              </div>
+              {extractedMedications.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPrescriptionTable(!showPrescriptionTable)}
+                  className="flex items-center gap-2"
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  {showPrescriptionTable ? 'View Plan Text' : 'View Prescription Table'}
+                </Button>
+              )}
             </div>
-            
-            <div className="bg-gray-50 p-8 rounded-lg border border-gray-200">
-              {/* Timeline container */}
-              <div className="relative">
-                {/* Vertical timeline line */}
-                <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-green-300"></div>
-                
-                {/* Parse plan into sections */}
-                {(() => {
-                  const planText = soapNote.plan;
+
+            {/* Tabs for Plan Text vs Prescription Table */}
+            {extractedMedications.length > 0 ? (
+              <Tabs value={showPrescriptionTable ? 'prescription' : 'plan'} onValueChange={(v) => setShowPrescriptionTable(v === 'prescription')}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="plan">Plan Text</TabsTrigger>
+                  <TabsTrigger value="prescription">
+                    Prescription Table
+                    {extractedMedications.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {extractedMedications.length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="plan" className="mt-4">
+                  {/* Original Plan Text View */}
+                  <div className="bg-gray-50 p-8 rounded-lg border border-gray-200">
+                    {/* Timeline container */}
+                    <div className="relative">
+                      {/* Vertical timeline line */}
+                      <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-green-300"></div>
+                      
+                      {/* Parse plan into sections */}
+                      {(() => {
+                        const planText = soapNote.plan;
+                        
+                        // Improved parsing: look for sections with headers
+                        const diagnosisRegex = /(?:diagnosis|Diagnosis)[:\-]?\s*\n?([^\n]*(?:\n(?!\s*(?:medication|Medication|plan|Plan|follow-up|Follow-up|recheck|Recheck))[^\n]*)*)/i;
+                        const medicationRegex = /(?:medication|Medication|plan|Plan|treatment|Treatment)[:\-]?\s*\n?([^\n]*(?:\n(?!\s*(?:follow-up|Follow-up|recheck|Recheck|diagnosis|Diagnosis))[^\n]*)*)/i;
+                        const followUpRegex = /(?:follow-up|Follow-up|recheck|Recheck)[:\-]?\s*\n?([^\n]*(?:\n[^\n]*)*)/i;
+                        
+                        const diagnosisMatch = planText.match(diagnosisRegex);
+                        const medicationMatch = planText.match(medicationRegex);
+                        const followUpMatch = planText.match(followUpRegex);
+                        
+                        let diagnosis = diagnosisMatch ? diagnosisMatch[1].trim() : '';
+                        let medication = medicationMatch ? medicationMatch[1].trim() : '';
+                        let followUp = followUpMatch ? followUpMatch[1].trim() : '';
+                        
+                        // If no sections found, try to split by common patterns
+                        if (!diagnosis && !medication && !followUp) {
+                          // Try to find "Plan:" or "*Plan:*" section
+                          const planSection = planText.match(/(?:plan|Plan)[:\-]?\s*\n?([^\n]*(?:\n(?!\s*(?:follow-up|Follow-up|recheck|Recheck))[^\n]*)*)/i);
+                          if (planSection) {
+                            medication = planSection[1].trim();
+                          } else {
+                            // If no clear sections, treat everything before "Follow-up" as medication
+                            const parts = planText.split(/(?:follow-up|Follow-up|recheck|Recheck)/i);
+                            if (parts.length > 0) {
+                              medication = parts[0].replace(/(?:plan|Plan|medication|Medication)[:\-]?\s*/i, '').trim();
+                            }
+                          }
+                          
+                          // Extract follow-up
+                          const followUpParts = planText.split(/(?:follow-up|Follow-up|recheck|Recheck)[:\-]?\s*/i);
+                          if (followUpParts.length > 1) {
+                            followUp = followUpParts.slice(1).join(' ').trim();
+                          }
+                        }
+                        
+                        // If still no medication found, use the whole plan (minus follow-up)
+                        if (!medication && !followUp) {
+                          medication = planText.trim();
+                        } else if (!medication) {
+                          medication = planText.split(/(?:follow-up|Follow-up|recheck|Recheck)/i)[0].trim();
+                        }
+                        
+                        return (
+                          <>
+                            {/* Diagnosis - Always show */}
+                            <div className="relative flex items-start mb-8">
+                              <div className="flex-shrink-0 w-12 h-12 bg-green-600 rounded-full flex items-center justify-center z-10">
+                                <FileSearch className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="ml-6 flex-1">
+                                <div className="flex items-center gap-3 mb-3">
+                                  <h3 className="font-bold text-gray-800 text-xl">Diagnosis</h3>
+                                  {wordCount(diagnosis) > 0 && (
+                                    <Badge variant="outline" className="text-sm bg-green-50 text-green-700 border-green-200 px-2 py-1">
+                                      {wordCount(diagnosis)} words
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                                  <Textarea
+                                    placeholder="Diagnosis..."
+                                    value={diagnosis}
+                                    onChange={(e) => {
+                                      // Update plan with new diagnosis
+                                      const newPlan = `Diagnosis: ${e.target.value}\n\n${medication ? `Medication: ${medication}\n\n` : 'Medication: \n\n'}${followUp ? `Follow-up: ${followUp}` : 'Follow-up: '}`;
+                                      updateSOAPNote('plan', newPlan);
+                                    }}
+                                    className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Medication - Always show */}
+                            <div className="relative flex items-start mb-8">
+                              <div className="flex-shrink-0 w-12 h-12 bg-green-600 rounded-full flex items-center justify-center z-10">
+                                <Pill className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="ml-6 flex-1">
+                                <div className="flex items-center gap-3 mb-3">
+                                  <h3 className="font-bold text-gray-800 text-xl">Medication</h3>
+                                  {wordCount(medication) > 0 && (
+                                    <Badge variant="outline" className="text-sm bg-green-50 text-green-700 border-green-200 px-2 py-1">
+                                      {wordCount(medication)} words
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                                  <Textarea
+                                    placeholder="Medications with dosages and frequency..."
+                                    value={medication}
+                                    onChange={(e) => {
+                                      // Update plan with new medication
+                                      const newPlan = `${diagnosis ? `Diagnosis: ${diagnosis}\n\n` : 'Diagnosis: \n\n'}Medication: ${e.target.value}\n\n${followUp ? `Follow-up: ${followUp}` : 'Follow-up: '}`;
+                                      updateSOAPNote('plan', newPlan);
+                                    }}
+                                    className="min-h-[100px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Follow-up - Always show */}
+                            <div className="relative flex items-start mb-8">
+                              <div className="flex-shrink-0 w-12 h-12 bg-green-600 rounded-full flex items-center justify-center z-10">
+                                <Activity className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="ml-6 flex-1">
+                                <div className="flex items-center gap-3 mb-3">
+                                  <h3 className="font-bold text-gray-800 text-xl">Follow-up</h3>
+                                  {wordCount(followUp) > 0 && (
+                                    <Badge variant="outline" className="text-sm bg-green-50 text-green-700 border-green-200 px-2 py-1">
+                                      {wordCount(followUp)} words
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                                  <Textarea
+                                    placeholder="Recheck timeframe and monitoring..."
+                                    value={followUp}
+                                    onChange={(e) => {
+                                      // Update plan with new follow-up
+                                      const newPlan = `${diagnosis ? `Diagnosis: ${diagnosis}\n\n` : 'Diagnosis: \n\n'}${medication ? `Medication: ${medication}\n\n` : 'Medication: \n\n'}Follow-up: ${e.target.value}`;
+                                      updateSOAPNote('plan', newPlan);
+                                    }}
+                                    className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </TabsContent>
+                <TabsContent value="prescription" className="mt-4">
+                  {/* Prescription Table View */}
+                  <PrescriptionTable
+                    extractedMedications={extractedMedications}
+                    patientId={currentPatient?.id}
+                    patient={currentPatient ? {
+                      id: currentPatient.id,
+                      name: currentPatient.name || currentPatient.pet?.name || 'Unknown',
+                      mrn: currentPatient.mrn || currentPatient.id,
+                      age: currentPatient.pet?.age || currentPatient.age,
+                      gender: currentPatient.gender || currentPatient.pet?.species,
+                      pet: currentPatient.pet
+                    } : undefined}
+                    doctor={{
+                      name: 'Dr. Veterinarian', // TODO: Get from auth/user context
+                      id: 'doctor_001'
+                    }}
+                    hospitalName="Veterinary Hospital"
+                    onPrescriptionChange={(prescription) => {
+                      console.log('📋 Final prescription:', prescription);
+                      // You can save this prescription to Firestore or handle it as needed
+                    }}
+                  />
+                </TabsContent>
+              </Tabs>
+            ) : (
+              // If no medications extracted, show only plan text (original view)
+              <div className="bg-gray-50 p-8 rounded-lg border border-gray-200">
+                {/* Timeline container */}
+                <div className="relative">
+                  {/* Vertical timeline line */}
+                  <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-green-300"></div>
                   
-                  // Improved parsing: look for sections with headers
-                  const sections: { [key: string]: string } = {};
-                  
-                  // Split by common section headers
-                  const diagnosisRegex = /(?:diagnosis|Diagnosis)[:\-]?\s*\n?([^\n]*(?:\n(?!\s*(?:medication|Medication|plan|Plan|follow-up|Follow-up|recheck|Recheck))[^\n]*)*)/i;
-                  const medicationRegex = /(?:medication|Medication|plan|Plan|treatment|Treatment)[:\-]?\s*\n?([^\n]*(?:\n(?!\s*(?:follow-up|Follow-up|recheck|Recheck|diagnosis|Diagnosis))[^\n]*)*)/i;
-                  const followUpRegex = /(?:follow-up|Follow-up|recheck|Recheck)[:\-]?\s*\n?([^\n]*(?:\n[^\n]*)*)/i;
-                  
-                  const diagnosisMatch = planText.match(diagnosisRegex);
-                  const medicationMatch = planText.match(medicationRegex);
-                  const followUpMatch = planText.match(followUpRegex);
-                  
-                  let diagnosis = diagnosisMatch ? diagnosisMatch[1].trim() : '';
-                  let medication = medicationMatch ? medicationMatch[1].trim() : '';
-                  let followUp = followUpMatch ? followUpMatch[1].trim() : '';
-                  
-                  // If no sections found, try to split by common patterns
-                  if (!diagnosis && !medication && !followUp) {
-                    // Try to find "Plan:" or "*Plan:*" section
-                    const planSection = planText.match(/(?:plan|Plan)[:\-]?\s*\n?([^\n]*(?:\n(?!\s*(?:follow-up|Follow-up|recheck|Recheck))[^\n]*)*)/i);
-                    if (planSection) {
-                      medication = planSection[1].trim();
-                    } else {
-                      // If no clear sections, treat everything before "Follow-up" as medication
-                      const parts = planText.split(/(?:follow-up|Follow-up|recheck|Recheck)/i);
-                      if (parts.length > 0) {
-                        medication = parts[0].replace(/(?:plan|Plan|medication|Medication)[:\-]?\s*/i, '').trim();
+                  {/* Parse plan into sections - same logic as above */}
+                  {(() => {
+                    const planText = soapNote.plan;
+                    
+                    const diagnosisRegex = /(?:diagnosis|Diagnosis)[:\-]?\s*\n?([^\n]*(?:\n(?!\s*(?:medication|Medication|plan|Plan|follow-up|Follow-up|recheck|Recheck))[^\n]*)*)/i;
+                    const medicationRegex = /(?:medication|Medication|plan|Plan|treatment|Treatment)[:\-]?\s*\n?([^\n]*(?:\n(?!\s*(?:follow-up|Follow-up|recheck|Recheck|diagnosis|Diagnosis))[^\n]*)*)/i;
+                    const followUpRegex = /(?:follow-up|Follow-up|recheck|Recheck)[:\-]?\s*\n?([^\n]*(?:\n[^\n]*)*)/i;
+                    
+                    const diagnosisMatch = planText.match(diagnosisRegex);
+                    const medicationMatch = planText.match(medicationRegex);
+                    const followUpMatch = planText.match(followUpRegex);
+                    
+                    let diagnosis = diagnosisMatch ? diagnosisMatch[1].trim() : '';
+                    let medication = medicationMatch ? medicationMatch[1].trim() : '';
+                    let followUp = followUpMatch ? followUpMatch[1].trim() : '';
+                    
+                    if (!diagnosis && !medication && !followUp) {
+                      const planSection = planText.match(/(?:plan|Plan)[:\-]?\s*\n?([^\n]*(?:\n(?!\s*(?:follow-up|Follow-up|recheck|Recheck))[^\n]*)*)/i);
+                      if (planSection) {
+                        medication = planSection[1].trim();
+                      } else {
+                        const parts = planText.split(/(?:follow-up|Follow-up|recheck|Recheck)/i);
+                        if (parts.length > 0) {
+                          medication = parts[0].replace(/(?:plan|Plan|medication|Medication)[:\-]?\s*/i, '').trim();
+                        }
+                      }
+                      
+                      const followUpParts = planText.split(/(?:follow-up|Follow-up|recheck|Recheck)[:\-]?\s*/i);
+                      if (followUpParts.length > 1) {
+                        followUp = followUpParts.slice(1).join(' ').trim();
                       }
                     }
                     
-                    // Extract follow-up
-                    const followUpParts = planText.split(/(?:follow-up|Follow-up|recheck|Recheck)[:\-]?\s*/i);
-                    if (followUpParts.length > 1) {
-                      followUp = followUpParts.slice(1).join(' ').trim();
+                    if (!medication && !followUp) {
+                      medication = planText.trim();
+                    } else if (!medication) {
+                      medication = planText.split(/(?:follow-up|Follow-up|recheck|Recheck)/i)[0].trim();
                     }
-                  }
-                  
-                  // If still no medication found, use the whole plan (minus follow-up)
-                  if (!medication && !followUp) {
-                    medication = planText.trim();
-                  } else if (!medication) {
-                    medication = planText.split(/(?:follow-up|Follow-up|recheck|Recheck)/i)[0].trim();
-                  }
-                  
-                  return (
-                    <>
-                      {/* Diagnosis - Always show */}
-                      <div className="relative flex items-start mb-8">
-                        <div className="flex-shrink-0 w-12 h-12 bg-green-600 rounded-full flex items-center justify-center z-10">
-                          <FileSearch className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="ml-6 flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <h3 className="font-bold text-gray-800 text-xl">Diagnosis</h3>
-                            {wordCount(diagnosis) > 0 && (
-                              <Badge variant="outline" className="text-sm bg-green-50 text-green-700 border-green-200 px-2 py-1">
-                                {wordCount(diagnosis)} words
-                              </Badge>
-                            )}
+                    
+                    return (
+                      <>
+                        <div className="relative flex items-start mb-8">
+                          <div className="flex-shrink-0 w-12 h-12 bg-green-600 rounded-full flex items-center justify-center z-10">
+                            <FileSearch className="h-5 w-5 text-white" />
                           </div>
-                          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                            <Textarea
-                              placeholder="Diagnosis..."
-                              value={diagnosis}
-                              onChange={(e) => {
-                                // Update plan with new diagnosis
-                                const newPlan = `Diagnosis: ${e.target.value}\n\n${medication ? `Medication: ${medication}\n\n` : 'Medication: \n\n'}${followUp ? `Follow-up: ${followUp}` : 'Follow-up: '}`;
-                                updateSOAPNote('plan', newPlan);
-                              }}
-                              className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
-                            />
+                          <div className="ml-6 flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <h3 className="font-bold text-gray-800 text-xl">Diagnosis</h3>
+                              {wordCount(diagnosis) > 0 && (
+                                <Badge variant="outline" className="text-sm bg-green-50 text-green-700 border-green-200 px-2 py-1">
+                                  {wordCount(diagnosis)} words
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                              <Textarea
+                                placeholder="Diagnosis..."
+                                value={diagnosis}
+                                onChange={(e) => {
+                                  const newPlan = `Diagnosis: ${e.target.value}\n\n${medication ? `Medication: ${medication}\n\n` : 'Medication: \n\n'}${followUp ? `Follow-up: ${followUp}` : 'Follow-up: '}`;
+                                  updateSOAPNote('plan', newPlan);
+                                }}
+                                className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      
-                      {/* Medication - Always show */}
-                      <div className="relative flex items-start mb-8">
-                        <div className="flex-shrink-0 w-12 h-12 bg-green-600 rounded-full flex items-center justify-center z-10">
-                          <Pill className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="ml-6 flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <h3 className="font-bold text-gray-800 text-xl">Medication</h3>
-                            {wordCount(medication) > 0 && (
-                              <Badge variant="outline" className="text-sm bg-green-50 text-green-700 border-green-200 px-2 py-1">
-                                {wordCount(medication)} words
-                              </Badge>
-                            )}
+                        
+                        <div className="relative flex items-start mb-8">
+                          <div className="flex-shrink-0 w-12 h-12 bg-green-600 rounded-full flex items-center justify-center z-10">
+                            <Pill className="h-5 w-5 text-white" />
                           </div>
-                          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                            <Textarea
-                              placeholder="Medications with dosages and frequency..."
-                              value={medication}
-                              onChange={(e) => {
-                                // Update plan with new medication
-                                const newPlan = `${diagnosis ? `Diagnosis: ${diagnosis}\n\n` : 'Diagnosis: \n\n'}Medication: ${e.target.value}\n\n${followUp ? `Follow-up: ${followUp}` : 'Follow-up: '}`;
-                                updateSOAPNote('plan', newPlan);
-                              }}
-                              className="min-h-[100px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
-                            />
+                          <div className="ml-6 flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <h3 className="font-bold text-gray-800 text-xl">Medication</h3>
+                              {wordCount(medication) > 0 && (
+                                <Badge variant="outline" className="text-sm bg-green-50 text-green-700 border-green-200 px-2 py-1">
+                                  {wordCount(medication)} words
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                              <Textarea
+                                placeholder="Medications with dosages and frequency..."
+                                value={medication}
+                                onChange={(e) => {
+                                  const newPlan = `${diagnosis ? `Diagnosis: ${diagnosis}\n\n` : 'Diagnosis: \n\n'}Medication: ${e.target.value}\n\n${followUp ? `Follow-up: ${followUp}` : 'Follow-up: '}`;
+                                  updateSOAPNote('plan', newPlan);
+                                }}
+                                className="min-h-[100px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      
-                      {/* Follow-up - Always show */}
-                      <div className="relative flex items-start mb-8">
-                        <div className="flex-shrink-0 w-12 h-12 bg-green-600 rounded-full flex items-center justify-center z-10">
-                          <Activity className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="ml-6 flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <h3 className="font-bold text-gray-800 text-xl">Follow-up</h3>
-                            {wordCount(followUp) > 0 && (
-                              <Badge variant="outline" className="text-sm bg-green-50 text-green-700 border-green-200 px-2 py-1">
-                                {wordCount(followUp)} words
-                              </Badge>
-                            )}
+                        
+                        <div className="relative flex items-start mb-8">
+                          <div className="flex-shrink-0 w-12 h-12 bg-green-600 rounded-full flex items-center justify-center z-10">
+                            <Activity className="h-5 w-5 text-white" />
                           </div>
-                          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                            <Textarea
-                              placeholder="Recheck timeframe and monitoring..."
-                              value={followUp}
-                              onChange={(e) => {
-                                // Update plan with new follow-up
-                                const newPlan = `${diagnosis ? `Diagnosis: ${diagnosis}\n\n` : 'Diagnosis: \n\n'}${medication ? `Medication: ${medication}\n\n` : 'Medication: \n\n'}Follow-up: ${e.target.value}`;
-                                updateSOAPNote('plan', newPlan);
-                              }}
-                              className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
-                            />
+                          <div className="ml-6 flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <h3 className="font-bold text-gray-800 text-xl">Follow-up</h3>
+                              {wordCount(followUp) > 0 && (
+                                <Badge variant="outline" className="text-sm bg-green-50 text-green-700 border-green-200 px-2 py-1">
+                                  {wordCount(followUp)} words
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                              <Textarea
+                                placeholder="Recheck timeframe and monitoring..."
+                                value={followUp}
+                                onChange={(e) => {
+                                  const newPlan = `${diagnosis ? `Diagnosis: ${diagnosis}\n\n` : 'Diagnosis: \n\n'}${medication ? `Medication: ${medication}\n\n` : 'Medication: \n\n'}Follow-up: ${e.target.value}`;
+                                  updateSOAPNote('plan', newPlan);
+                                }}
+                                className="min-h-[80px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </>
-                  );
-                })()}
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
         </>
