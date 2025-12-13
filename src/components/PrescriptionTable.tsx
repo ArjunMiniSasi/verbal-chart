@@ -442,17 +442,27 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
                             </AlertDescription>
                           </Alert>
                         )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      No matching medicines found in inventory. Please enter manually or add to inventory.
-                    </AlertDescription>
-                  </Alert>
-                )}
+                        </div>
+                      )}
+                    </div>
+                    );
+                  } else {
+                    // No good matches (all below 70% threshold)
+                    return (
+                      <Alert className="bg-amber-50 border-amber-200">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        <AlertDescription className="text-amber-900">
+                          <strong>Medicine match is too low.</strong> Similar medicine does not exist in the inventory. 
+                          {medication.inventory_matches && medication.inventory_matches.length > 0 && (
+                            <span className="block mt-1 text-xs">
+                              ({medication.inventory_matches.length} potential match{medication.inventory_matches.length > 1 ? 'es' : ''} found with less than 70% confidence)
+                            </span>
+                          )}
+                        </AlertDescription>
+                      </Alert>
+                    );
+                  }
+                })()}
 
                 {/* Quantity and Instructions */}
                 {selectedMatch && selectedMatch.in_stock && (
