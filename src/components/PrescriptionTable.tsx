@@ -563,6 +563,36 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
                               />
                             </div>
                           </div>
+
+                          {/* Instructions for Manual Entry */}
+                          <div className="space-y-2">
+                            <Label htmlFor={`manual-instructions-${index}`} className="text-sm font-semibold">
+                              Additional Instructions
+                            </Label>
+                            <Textarea
+                              id={`manual-instructions-${index}`}
+                              value={prescription?.instructions || ''}
+                              onChange={(e) => handleInstructionsChange(medication.medication_name, e.target.value)}
+                              placeholder="Any special instructions for this medication..."
+                              className="min-h-[80px] border-blue-300 focus:border-blue-500"
+                            />
+                          </div>
+
+                          {/* Display extracted info */}
+                          <div className="grid grid-cols-3 gap-2 text-sm bg-white rounded p-3 border border-blue-200">
+                            <div>
+                              <span className="font-semibold text-gray-700">Dosage:</span>
+                              <p className="text-gray-900">{medication.dosage}</p>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">Frequency:</span>
+                              <p className="text-gray-900">{medication.frequency}</p>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">Duration:</span>
+                              <p className="text-gray-900">{medication.duration || 'As needed'}</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
