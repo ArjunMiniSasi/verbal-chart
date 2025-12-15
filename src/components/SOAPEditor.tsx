@@ -3,7 +3,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Eye, Download, Save, Loader2, Stethoscope, ClipboardList, Brain, Target, Pill, Calculator, FileSearch, Activity, ShoppingCart } from "lucide-react";
+import { FileText, Eye, Download, Save, Loader2, Stethoscope, ClipboardList, Brain, Target, Pill, Calculator, FileSearch, Activity, Clipboard } from "lucide-react";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -283,7 +283,8 @@ export const SOAPEditor = () => {
       if (data.extracted_medications && data.extracted_medications.length > 0) {
         console.log('✅ Medications extracted and matched:', data.extracted_medications.length);
         setExtractedMedications(data.extracted_medications);
-        setShowPrescriptionTable(true);
+        // Always show Plan tab first, not Prescription
+        setShowPrescriptionTable(false);
         toast({
           title: "Plan Generated with Inventory Matching",
           description: `Found ${data.extracted_medications.length} medications with ${data.medications_with_matches || 0} inventory matches.`,
@@ -564,19 +565,19 @@ ${soapNote.plan}
                   onClick={() => setShowPrescriptionTable(!showPrescriptionTable)}
                   className="flex items-center gap-2"
                 >
-                  <ShoppingCart className="h-4 w-4" />
-                  {showPrescriptionTable ? 'View Plan Text' : 'View Prescription Table'}
+                  <Clipboard className="h-4 w-4" />
+                  {showPrescriptionTable ? 'View Plan' : 'View Prescription'}
                 </Button>
               )}
             </div>
 
-            {/* Tabs for Plan Text vs Prescription Table */}
+            {/* Tabs for Plan vs Prescription */}
             {extractedMedications.length > 0 ? (
               <Tabs value={showPrescriptionTable ? 'prescription' : 'plan'} onValueChange={(v) => setShowPrescriptionTable(v === 'prescription')}>
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="plan">Plan Text</TabsTrigger>
+                  <TabsTrigger value="plan">Plan</TabsTrigger>
                   <TabsTrigger value="prescription">
-                    Prescription Table
+                    Prescription
                     {extractedMedications.length > 0 && (
                       <Badge variant="secondary" className="ml-2">
                         {extractedMedications.length}
@@ -585,7 +586,7 @@ ${soapNote.plan}
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="plan" className="mt-4">
-                  {/* Original Plan Text View */}
+                  {/* Plan View */}
                   <div className="bg-gray-50 p-8 rounded-lg border border-gray-200">
                     {/* Timeline container */}
                     <div className="relative">
@@ -732,7 +733,7 @@ ${soapNote.plan}
                   </div>
                 </TabsContent>
                 <TabsContent value="prescription" className="mt-4">
-                  {/* Prescription Table View */}
+                  {/* Prescription View */}
                   <PrescriptionTable
                     extractedMedications={extractedMedications}
                     patientId={currentPatient?.id}

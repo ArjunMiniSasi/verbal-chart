@@ -99,6 +99,7 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
 }) => {
   const [prescriptions, setPrescriptions] = useState<Record<string, PrescribedMedication>>({});
   const [selectedMatches, setSelectedMatches] = useState<Record<string, string>>({}); // medication_name -> inventory_id
+  const [manualEntries, setManualEntries] = useState<Record<string, boolean>>({}); // Track which medications are manually entered
 
   useEffect(() => {
     // Initialize prescriptions from extracted medications
@@ -180,6 +181,38 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
     }));
   };
 
+  const handleManualBrandEntry = (medicationName: string, brandName: string) => {
+    const medication = extractedMedications.find(m => m.medication_name === medicationName);
+    
+    setManualEntries(prev => ({ ...prev, [medicationName]: true }));
+    
+    setPrescriptions(prev => ({
+      ...prev,
+      [medicationName]: {
+        ...prev[medicationName],
+        inventory_id: `manual_${medicationName}_${Date.now()}`, // Generate unique ID for manual entry
+        brand_name: brandName,
+        strength: medication?.dosage || '', // Auto-fill from extracted dosage
+        form: medication?.route || 'Oral', // Auto-fill from extracted route
+        stock_quantity: 999, // Set high number for manual entries
+        expiry_date: 'N/A',
+        cost_per_unit: 0
+      }
+    }));
+    
+    console.log('✅ Manual brand entry:', medicationName, brandName);
+  };
+
+  const handleManualFieldChange = (medicationName: string, field: string, value: string) => {
+    setPrescriptions(prev => ({
+      ...prev,
+      [medicationName]: {
+        ...prev[medicationName],
+        [field]: value
+      }
+    }));
+  };
+
   const getStockStatus = (match: InventoryMatch) => {
     if (!match.in_stock || match.stock_quantity === 0) {
       return { status: 'out', icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' };
@@ -213,13 +246,13 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
   };
 
   const handleExportPDF = () => {
-    // Get all medications that have been selected from inventory (even if quantity is 0)
+    // Get all medications that have been selected from inventory OR manually entered
     const prescriptionArray = Object.values(prescriptions).filter(
-      p => p.inventory_id && p.inventory_id.trim() !== ''
+      p => p.inventory_id && p.inventory_id.trim() !== '' && p.brand_name && p.brand_name.trim() !== ''
     );
 
     if (prescriptionArray.length === 0) {
-      alert('No medications selected. Please select medications from inventory before exporting.');
+      alert('No medications added. Please select from inventory or enter brand names manually before exporting.');
       return;
     }
 
@@ -342,52 +375,60 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
                 </div>
 
                 {/* Inventory Match Selection */}
-                {medication.inventory_matches && medication.inventory_matches.length > 0 ? (
-                  <div className="space-y-3">
-                    <Label htmlFor={`match-${index}`} className="text-sm font-semibold">
-                      Select Brand from Inventory:
-                    </Label>
-                    <Select
-                      value={selectedMatchId || ''}
-                      onValueChange={(value) => handleMatchSelect(medication.medication_name, value)}
-                    >
-                      <SelectTrigger id={`match-${index}`} className="w-full">
-                        <SelectValue placeholder="Select a brand from inventory..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {medication.inventory_matches.map((match) => {
-                          const stockStatus = getStockStatus(match);
-                          const StatusIcon = stockStatus.icon;
-                          
-                          return (
-                            <SelectItem key={match.inventory_id} value={match.inventory_id}>
-                              <div className="flex items-center justify-between w-full">
-                                <div className="flex items-center gap-2">
-                                  <StatusIcon className={`h-4 w-4 ${stockStatus.color}`} />
-                                  <span className="font-medium">{match.brand_name}</span>
-                                  <span className="text-gray-500">• {match.strength}</span>
-                                  <span className="text-gray-500">• {match.form}</span>
-                                </div>
-                                <div className="flex items-center gap-3 ml-4">
-                                  <Badge 
-                                    variant="outline" 
-                                    className={`text-xs ${stockStatus.bg} ${stockStatus.border} ${stockStatus.color}`}
-                                  >
-                                    {match.stock_quantity} {match.unit}
-                                  </Badge>
-                                  <span className="text-xs text-gray-500">
-                                    Match: {(match.match_score * 100).toFixed(0)}%
-                                  </span>
-                                </div>
-                              </div>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+                {(() => {
+                  // Filter matches to only show those with >= 70% match score
+                  const MIN_MATCH_SCORE = 0.70;
+                  const goodMatches = medication.inventory_matches?.filter(
+                    match => match.match_score >= MIN_MATCH_SCORE
+                  ) || [];
 
-                    {/* Selected Match Details */}
-                    {selectedMatch && (
+                  if (goodMatches.length > 0) {
+                    return (
+                      <div className="space-y-3">
+                        <Label htmlFor={`match-${index}`} className="text-sm font-semibold">
+                          Select Brand from Inventory:
+                        </Label>
+                        <Select
+                          value={selectedMatchId || ''}
+                          onValueChange={(value) => handleMatchSelect(medication.medication_name, value)}
+                        >
+                          <SelectTrigger id={`match-${index}`} className="w-full">
+                            <SelectValue placeholder="Select a brand from inventory..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {goodMatches.map((match) => {
+                              const stockStatus = getStockStatus(match);
+                              const StatusIcon = stockStatus.icon;
+                              
+                              return (
+                                <SelectItem key={match.inventory_id} value={match.inventory_id}>
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="flex items-center gap-2">
+                                      <StatusIcon className={`h-4 w-4 ${stockStatus.color}`} />
+                                      <span className="font-medium">{match.brand_name}</span>
+                                      <span className="text-gray-500">• {match.strength}</span>
+                                      <span className="text-gray-500">• {match.form}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 ml-4">
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-xs ${stockStatus.bg} ${stockStatus.border} ${stockStatus.color}`}
+                                      >
+                                        {match.stock_quantity} {match.unit}
+                                      </Badge>
+                                      <span className="text-xs text-gray-500">
+                                        Match: {(match.match_score * 100).toFixed(0)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+
+                        {/* Selected Match Details */}
+                        {selectedMatch && (
                       <div className={`p-4 rounded-lg border-2 ${getStockStatus(selectedMatch).border} ${getStockStatus(selectedMatch).bg}`}>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
@@ -434,17 +475,101 @@ export const PrescriptionTable: React.FC<PrescriptionTableProps> = ({
                             </AlertDescription>
                           </Alert>
                         )}
+                        </div>
+                      )}
+                    </div>
+                    );
+                  } else {
+                    // No good matches (all below 70% threshold) - Show manual entry form
+                    return (
+                      <div className="space-y-4">
+                        <Alert className="bg-amber-50 border-amber-200">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          <AlertDescription className="text-amber-900">
+                            <strong>No medicine found in inventory</strong> for composition: <em>{medication.suggested_composition}</em>
+                            {medication.inventory_matches && medication.inventory_matches.length > 0 && (
+                              <span className="block mt-1 text-xs text-amber-700">
+                                ({medication.inventory_matches.length} potential match{medication.inventory_matches.length > 1 ? 'es' : ''} found with less than 70% confidence)
+                              </span>
+                            )}
+                          </AlertDescription>
+                        </Alert>
+
+                        {/* Manual Entry Form - Simplified */}
+                        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 space-y-4">
+                          <div className="flex items-center gap-2 text-blue-900 font-semibold">
+                            <FileText className="h-5 w-5" />
+                            <span>Medicine from Outside - Enter Details</span>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor={`manual-brand-${index}`} className="text-sm font-semibold">
+                                Brand Name <span className="text-red-500">*</span>
+                              </Label>
+                              <Input
+                                id={`manual-brand-${index}`}
+                                type="text"
+                                value={prescription?.brand_name || ''}
+                                onChange={(e) => handleManualBrandEntry(medication.medication_name, e.target.value)}
+                                placeholder="Enter brand name to be bought from outside..."
+                                className="border-blue-300 focus:border-blue-500"
+                              />
+                              <p className="text-xs text-gray-600">
+                                This will be added to the prescription PDF
+                              </p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`manual-quantity-${index}`} className="text-sm font-semibold">
+                                Quantity
+                              </Label>
+                              <Input
+                                id={`manual-quantity-${index}`}
+                                type="number"
+                                min="0"
+                                value={prescription?.quantity || 0}
+                                onChange={(e) => handleQuantityChange(medication.medication_name, parseInt(e.target.value) || 0)}
+                                placeholder="Enter quantity"
+                                className="border-blue-300 focus:border-blue-500"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Instructions for Manual Entry */}
+                          <div className="space-y-2">
+                            <Label htmlFor={`manual-instructions-${index}`} className="text-sm font-semibold">
+                              Instructions (Optional)
+                            </Label>
+                            <Textarea
+                              id={`manual-instructions-${index}`}
+                              value={prescription?.instructions || ''}
+                              onChange={(e) => handleInstructionsChange(medication.medication_name, e.target.value)}
+                              placeholder="Any special instructions for this medication..."
+                              className="min-h-[60px] border-blue-300 focus:border-blue-500"
+                            />
+                          </div>
+
+                          {/* Display extracted info - Read only */}
+                          <div className="grid grid-cols-3 gap-2 text-sm bg-white rounded p-3 border border-blue-200">
+                            <div>
+                              <span className="font-semibold text-gray-700">Dosage:</span>
+                              <p className="text-gray-900">{medication.dosage}</p>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">Frequency:</span>
+                              <p className="text-gray-900">{medication.frequency}</p>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">Duration:</span>
+                              <p className="text-gray-900">{medication.duration || 'As needed'}</p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      No matching medicines found in inventory. Please enter manually or add to inventory.
-                    </AlertDescription>
-                  </Alert>
-                )}
+                    );
+                  }
+                })()}
 
                 {/* Quantity and Instructions */}
                 {selectedMatch && selectedMatch.in_stock && (
