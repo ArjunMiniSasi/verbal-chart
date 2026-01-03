@@ -56,3 +56,6 @@ server/.env
 
 # Guidelines folder
 guidelines/
+
+# Tests folder
+tests/
