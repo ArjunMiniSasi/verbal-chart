@@ -40,7 +40,7 @@ export const CaseSummary = () => {
     try {
       // Simulate processing time
       await new Promise(resolve => setTimeout(resolve, 1000))
-      
+
       // Generate summary directly from SOAP data in the store
       const generatedSummary = generateSummaryFromSOAP();
       setSummary(generatedSummary);
@@ -49,6 +49,64 @@ export const CaseSummary = () => {
         title: "Summary Generated",
         description: "Case summary has been generated from SOAP notes successfully.",
       })
+
+      // Send WhatsApp message after summary is generatsed
+      console.log('📱 Attempting to send WhatsApp message...');
+      try {
+        // Parameters for WhatsApp message
+        const phoneNumber = '919562819995'; // Can be made dynamic based on patient/owner
+        const imageUrl = 'https://firebasestorage.googleapis.com/v0/b/vetqure-pms.firebasestorage.app/o/Hackathon%2FScreenshot%202026-01-10%20at%2012.12.02%E2%80%AFPM.png?alt=media&token=2dab0939-d697-45fe-bf5f-a7f92529dda7';
+        // Determine value (FMD or LSD) - default to FMD
+        // You can change this logic based on your requirements (e.g., based on SOAP notes, diagnosis, etc.)
+        const bodyValue = 'FMD'; // Change to 'LSD' if needed, or make it dynamic based on conditions
+
+        // Call Firebase Cloud Function with all parameters
+        const response = await fetch('https://us-central1-vetqure-pms.cloudfunctions.net/sendWhatsAppMessage', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phoneNumber: phoneNumber,
+            imageUrl: imageUrl,
+            value: bodyValue
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ WhatsApp API error:', `Status ${response.status}: ${errorText}`);
+          throw new Error(`API request failed with status ${response.status}`);
+        }
+
+        const whatsappResult = await response.json();
+        console.log('📱 WhatsApp API result:', whatsappResult);
+
+        if (whatsappResult.success) {
+          console.log('✅ WhatsApp message sent successfully');
+          toast({
+            title: "WhatsApp Message Sent",
+            description: "Alert message has been sent to the farmer.",
+          });
+        } else {
+          console.warn('⚠️ WhatsApp message failed:', whatsappResult);
+          const errorMsg = whatsappResult.error || whatsappResult.details?.message || "Failed to send WhatsApp message.";
+          toast({
+            title: "WhatsApp Message Failed",
+            description: errorMsg,
+            variant: "destructive"
+          });
+        }
+      } catch (whatsappError: any) {
+        console.error('❌ WhatsApp API error:', whatsappError);
+        const errorMessage = whatsappError?.message || "Failed to send WhatsApp message.";
+        toast({
+          title: "WhatsApp API Error",
+          description: errorMessage,
+          variant: "destructive"
+        });
+        // Don't fail the summary generation if WhatsApp fails
+      }
 
     } catch (error) {
       console.error('Summary generation error:', error)
@@ -64,12 +122,12 @@ export const CaseSummary = () => {
 
   const generateSummaryFromSOAP = () => {
     const summaryPoints = [];
-    
+
     // 1. Chief complaint/presenting symptoms (from Subjective)
     if (soapNote.subjective) {
       const subjective = soapNote.subjective.toLowerCase();
       let chiefComplaint = '';
-      
+
       if (subjective.includes('vomiting') || subjective.includes('vomit')) {
         chiefComplaint = 'Patient presented with vomiting';
       } else if (subjective.includes('diarrhea') || subjective.includes('diarrhoea')) {
@@ -83,17 +141,17 @@ export const CaseSummary = () => {
         const firstSentence = soapNote.subjective.split('.')[0];
         chiefComplaint = firstSentence.length > 80 ? firstSentence.substring(0, 80) + '...' : firstSentence;
       }
-      
+
       if (chiefComplaint) {
         summaryPoints.push(`• ${chiefComplaint}`);
       }
     }
-    
+
     // 2. Key physical exam findings (from Objective)
     if (soapNote.objective) {
       const objective = soapNote.objective.toLowerCase();
       let examFindings = '';
-      
+
       if (objective.includes('dehydration') || objective.includes('dehydrated')) {
         examFindings = 'Physical exam revealed dehydration';
       } else if (objective.includes('tender') || objective.includes('tenderness')) {
@@ -105,17 +163,17 @@ export const CaseSummary = () => {
         const firstSentence = soapNote.objective.split('.')[0];
         examFindings = firstSentence.length > 80 ? firstSentence.substring(0, 80) + '...' : firstSentence;
       }
-      
+
       if (examFindings) {
         summaryPoints.push(`• ${examFindings}`);
       }
     }
-    
+
     // 3. Primary diagnosis/assessment
     if (soapNote.assessment) {
       const assessment = soapNote.assessment.toLowerCase();
       let diagnosis = '';
-      
+
       if (assessment.includes('gastritis')) {
         diagnosis = 'Diagnosis: Gastritis';
       } else if (assessment.includes('obstruction')) {
@@ -124,17 +182,17 @@ export const CaseSummary = () => {
         // Use the assessment as is, but truncate if too long
         diagnosis = soapNote.assessment.length > 80 ? soapNote.assessment.substring(0, 80) + '...' : soapNote.assessment;
       }
-      
+
       if (diagnosis) {
         summaryPoints.push(`• ${diagnosis}`);
       }
     }
-    
+
     // 4. Treatment plan highlights (from Plan)
     if (soapNote.plan) {
       const plan = soapNote.plan.toLowerCase();
       let treatment = '';
-      
+
       if (plan.includes('metoclopramide') || plan.includes('cerenia') || plan.includes('maropitant')) {
         treatment = 'Anti-emetic medication prescribed';
       } else if (plan.includes('famotidine') || plan.includes('gastric')) {
@@ -151,12 +209,12 @@ export const CaseSummary = () => {
           treatment = treatment.length > 60 ? treatment.substring(0, 60) + '...' : treatment;
         }
       }
-      
+
       if (treatment) {
         summaryPoints.push(`• ${treatment}`);
       }
     }
-    
+
     // 5. Follow-up recommendations
     if (soapNote.plan) {
       const plan = soapNote.plan.toLowerCase();
@@ -168,12 +226,12 @@ export const CaseSummary = () => {
     } else {
       summaryPoints.push('• Follow-up as needed based on response to treatment');
     }
-    
+
     // If we don't have enough points, add patient info
     if (summaryPoints.length < 3) {
       summaryPoints.unshift(`• Patient: ${currentPatient?.pet?.name || 'Unknown'} (${currentPatient?.pet?.species || 'Unknown'})`);
     }
-    
+
     return summaryPoints.join('\n');
   }
 
@@ -210,7 +268,7 @@ export const CaseSummary = () => {
       }
 
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error);
       }
@@ -245,12 +303,12 @@ export const CaseSummary = () => {
     try {
       // Create a simple text-based PDF export
       const transcriptText = transcript.map(chunk => chunk.text).join(' ')
-      
+
       // Clean the plan text for export (remove HTML tags)
       const cleanPlan = soapNote.plan
         ? soapNote.plan.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ')
         : 'No treatment plan generated';
-      
+
       const content = `
 SOAP NOTES
 ==========
@@ -293,7 +351,7 @@ ${summary}
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      
+
       toast({
         title: "Document Exported",
         description: "SOAP notes have been exported as a text file.",

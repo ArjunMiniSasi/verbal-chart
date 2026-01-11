@@ -21,15 +21,77 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import VoiceToSoapAnimation from '@/components/VoiceToSoapAnimation';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeFeature, setActiveFeature] = useState('transcription');
   const [isVideoPlaying, setIsVideoPlaying] = useState(true);
+  const [isBookingDemo, setIsBookingDemo] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const handleStartTrial = () => {
     navigate('/dashboard');
+  };
+
+  const handleBookDemo = async () => {
+    setIsBookingDemo(true);
+    try {
+      // Parameters for WhatsApp message
+      const phoneNumber = '919562819995'; // Default demo booking number
+      const imageUrl = 'https://i.ytimg.com/vi/w1w4ZpZIlR8/hqdefault.jpg';
+      const bodyValue = 'FMD'; // Default value for demo booking
+
+      // Call Firebase Cloud Function
+      const response = await fetch('https://us-central1-vetqure-pms.cloudfunctions.net/sendWhatsAppMessage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phoneNumber: phoneNumber,
+          imageUrl: imageUrl,
+          value: bodyValue
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ WhatsApp API error:', `Status ${response.status}: ${errorText}`);
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+
+      const whatsappResult = await response.json();
+      console.log('📱 WhatsApp API result:', whatsappResult);
+
+      if (whatsappResult.success) {
+        console.log('✅ WhatsApp message sent successfully');
+        toast({
+          title: "Demo Request Sent",
+          description: "We've received your demo request! Our team will contact you shortly via WhatsApp.",
+        });
+      } else {
+        console.warn('⚠️ WhatsApp message failed:', whatsappResult);
+        const errorMsg = whatsappResult.error || whatsappResult.details?.message || "Failed to send demo request.";
+        toast({
+          title: "Request Failed",
+          description: errorMsg,
+          variant: "destructive"
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ WhatsApp API error:', error);
+      const errorMessage = error?.message || "Failed to send demo request. Please try again.";
+      toast({
+        title: "Request Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setIsBookingDemo(false);
+    }
   };
 
   const toggleVideoPlay = () => {
@@ -162,9 +224,18 @@ const LandingPage = () => {
               <Button
                 variant="outline"
                 size="lg"
+                onClick={handleBookDemo}
+                disabled={isBookingDemo}
                 className="border-2 border-gray-300 bg-white text-black hover:bg-gray-50 hover:text-black px-8 py-6 text-lg font-semibold"
               >
-                Book a demo
+                {isBookingDemo ? (
+                  <>
+                    <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  'Book a demo'
+                )}
               </Button>
             </div>
                   </div>

@@ -8,7 +8,7 @@ export interface Vaccination {
 
 export interface Pet {
   name: string;
-  species: 'Dog' | 'Cat' | 'Bird' | 'Rabbit' | 'Reptile';
+  species: 'Dog' | 'Cat' | 'Bird' | 'Rabbit' | 'Reptile' | 'Cattle' | 'Goat' | 'Buffalo';
   breed: string;
   age: number;
   gender: 'Male' | 'Female';
@@ -103,6 +103,119 @@ export interface TranscriptChunk {
 
 // Mock patients with comprehensive pet and owner data
 export const mockPatients: Patient[] = [
+  // Cattle Profiles
+  {
+    id: '6',
+    name: 'Lakshmi',
+    age: 5,
+    mrn: 'MRN006',
+    lastVisit: '2024-01-20',
+    pet: {
+      name: 'Lakshmi',
+      species: 'Cattle',
+      breed: 'Holstein Friesian',
+      age: 5,
+      gender: 'Female',
+      weight: 550,
+      color: 'Black and White',
+      imageUrl: 'https://cdn.pixabay.com/photo/2014/08/23/11/33/cow-425164_1280.jpg',
+      vaccinations: [
+        {
+          name: 'FMD',
+          date: '2023-12-15',
+          nextDue: '2024-12-15',
+          status: 'Current'
+        },
+        {
+          name: 'Brucellosis',
+          date: '2023-12-15',
+          nextDue: '2024-12-15',
+          status: 'Current'
+        },
+        {
+          name: 'Blackleg',
+          date: '2023-12-15',
+          nextDue: '2024-12-15',
+          status: 'Current'
+        }
+      ],
+      medicalHistory: 'Dairy cow with good milk production. Recent mastitis episode in January 2024. Regular vaccinations maintained. Good body condition.',
+      allergies: ['None known'],
+      lastConsultedDoctor: 'Dr. Rajesh Kumar',
+      temperament: 'Docile, good milking temperament',
+      dietaryNeeds: 'High-quality dairy feed, fresh hay, mineral supplements'
+    },
+    owner: {
+      name: 'Rajesh Kumar',
+      phone: '+91 98765 43210',
+      email: 'rajesh.kumar@farm.com',
+      address: {
+        street: 'Dairy Farm Road',
+        city: 'Karnal',
+        state: 'Haryana',
+        zipCode: '132001'
+      },
+      occupation: 'Dairy Farmer',
+      emergencyContact: {
+        name: 'Priya Kumar',
+        phone: '+91 98765 43211',
+        relationship: 'Wife'
+      }
+    }
+  },
+  {
+    id: '7',
+    name: 'Raja',
+    age: 6,
+    mrn: 'MRN007',
+    lastVisit: '2024-01-18',
+    pet: {
+      name: 'Raja',
+      species: 'Cattle',
+      breed: 'Sahiwal',
+      age: 6,
+      gender: 'Male',
+      weight: 650,
+      color: 'Reddish Brown',
+      imageUrl: 'https://images.unsplash.com/photo-1560114928-40f1f1eb26a0?w=400&h=400&fit=crop',
+      vaccinations: [
+        {
+          name: 'FMD',
+          date: '2023-09-10',
+          nextDue: '2024-09-10',
+          status: 'Current'
+        },
+        {
+          name: 'Anthrax',
+          date: '2023-09-10',
+          nextDue: '2024-09-10',
+          status: 'Current'
+        }
+      ],
+      medicalHistory: 'Breeding bull with excellent health. Recent FMD outbreak in January 2024. Recovered well with treatment. Regular hoof maintenance.',
+      allergies: ['None known'],
+      lastConsultedDoctor: 'Dr. Rajesh Kumar',
+      temperament: 'Strong, active breeding bull',
+      dietaryNeeds: 'High-protein feed, mineral blocks, fresh water'
+    },
+    owner: {
+      name: 'Rajesh Kumar',
+      phone: '+91 98765 43210',
+      email: 'rajesh.kumar@farm.com',
+      address: {
+        street: 'Dairy Farm Road',
+        city: 'Karnal',
+        state: 'Haryana',
+        zipCode: '132001'
+      },
+      occupation: 'Dairy Farmer',
+      emergencyContact: {
+        name: 'Priya Kumar',
+        phone: '+91 98765 43211',
+        relationship: 'Wife'
+      }
+    }
+  },
   {
     id: '1',
     name: 'Max',
