@@ -9,6 +9,8 @@ const busboy = require('busboy');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const https = require('https');
+const { logger } = require('firebase-functions');
 // CORS helper function for Cloud Functions
 function setCorsHeaders(res) {
   res.set('Access-Control-Allow-Origin', '*');
@@ -934,7 +936,7 @@ async function translateToEnglish(text, sourceLanguage) {
     }
 
     console.log(`🌐 Translating from ${sourceLanguage} to English...`);
-    
+
     const translationPrompt = `Translate the following veterinary consultation transcript from ${sourceLanguage} to English. 
 Maintain medical terminology accuracy and professional tone. Preserve all medical details, symptoms, and treatment information.
 
@@ -946,9 +948,9 @@ Provide ONLY the English translation, no additional commentary.`;
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { 
-          role: 'system', 
-          content: 'You are a professional medical translator specializing in veterinary medicine. Translate accurately while preserving all medical information.' 
+        {
+          role: 'system',
+          content: 'You are a professional medical translator specializing in veterinary medicine. Translate accurately while preserving all medical information.'
         },
         { role: 'user', content: translationPrompt }
       ],
@@ -957,7 +959,7 @@ Provide ONLY the English translation, no additional commentary.`;
     });
 
     const translatedText = response.choices[0].message.content.trim();
-    
+
     console.log('✅ Translation completed');
     console.log('📝 Original length:', text.length);
     console.log('📝 Translated length:', translatedText.length);
@@ -1049,7 +1051,7 @@ exports.transcribe = functions
       // Step 2: Translate to English if not already in English
       console.log('🔄 Starting translation process...');
       const translationResult = await translateToEnglish(
-        transcription.text, 
+        transcription.text,
         transcription.language
       );
       console.log('✅ Translation process completed');
@@ -1364,3 +1366,164 @@ Keep it very brief.`;
       res.status(500).json({ error: 'generate-plan failed', message: error.message || String(error) });
     }
   });
+
+// 4. Send WhatsApp Message (HTTP Request Function)
+exports.sendWhatsAppMessage = functions.https.onRequest(async (req, res) => {
+  // Set CORS headers
+  setCorsHeaders(res);
+
+  // Handle OPTIONS request for CORS preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    // Get parameters from request body with defaults
+    const {
+      phoneNumber,
+      imageUrl,
+      value
+    } = req.body || {};
+
+    // Default values
+    const DEFAULT_PHONE = '919562819995';
+    const DEFAULT_IMAGE_URL = 'https://firebasestorage.googleapis.com/v0/b/vetqure-pms.firebasestorage.app/o/Hackathon%2FScreenshot%202026-01-10%20at%2012.12.02%E2%80%AFPM.png?alt=media&token=2dab0939-d697-45fe-bf5f-a7f92529dda7';
+
+    // Use provided values or defaults
+    const receiverNumber = phoneNumber || DEFAULT_PHONE;
+    const imageUrlToUse = imageUrl || DEFAULT_IMAGE_URL;
+    const bodyValue = value === 'LSD' ? 'LSD' : 'FMD'; // Default to FMD if not provided or invalid
+
+    // MSG91 API configuration
+    const MSG91_AUTH_KEY = '416736AumKHkzR65d6ec4bP1';
+    const INTEGRATED_NUMBER = '917907827984';
+    const TEMPLATE_NAME = 'vetqure_promotions_1';
+    const LANGUAGE_CODE = 'hi';
+    const NAMESPACE = '85df72af_b23d_42d8_8ed9_b6af31924e91';
+
+    console.log('Preparing to send WhatsApp message to:', receiverNumber);
+    console.log('Body value (FMD/LSD):', bodyValue);
+    console.log('Image URL:', imageUrlToUse);
+
+    // Construct MSG91 API payload using the bulk endpoint format
+    const postData = JSON.stringify({
+      integrated_number: INTEGRATED_NUMBER,
+      content_type: 'template',
+      payload: {
+        messaging_product: 'whatsapp',
+        type: 'template',
+        template: {
+          name: TEMPLATE_NAME,
+          language: {
+            code: LANGUAGE_CODE,
+            policy: 'deterministic'
+          },
+          namespace: NAMESPACE,
+          to_and_components: [
+            {
+              to: [receiverNumber],
+              components: {
+                header_1: {
+                  type: 'image',
+                  value: imageUrlToUse
+                },
+                body_1: {
+                  type: 'text',
+                  value: bodyValue
+                }
+              }
+            }
+          ]
+        }
+      }
+    });
+
+    console.log('Request payload:', postData);
+
+    const options = {
+      hostname: 'api.msg91.com',
+      port: 443,
+      path: '/api/v5/whatsapp/whatsapp-outbound-message/bulk/',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'authkey': MSG91_AUTH_KEY
+      }
+    };
+
+    const httpsReq = https.request(options, (httpsRes) => {
+      let responseData = '';
+
+      httpsRes.on('data', (chunk) => {
+        responseData += chunk;
+      });
+
+      httpsRes.on('end', () => {
+        try {
+          const parsedResponse = JSON.parse(responseData);
+          console.log('Received response:', parsedResponse);
+
+          if (httpsRes.statusCode === 200 || httpsRes.statusCode === 201) {
+            logger.info('WhatsApp message sent successfully', {
+              structuredData: true,
+              phoneNumber: receiverNumber,
+              statusCode: httpsRes.statusCode,
+              response: parsedResponse
+            });
+            res.json({
+              success: true,
+              messageId: parsedResponse.message_id || null,
+              data: parsedResponse,
+              phoneNumber: receiverNumber
+            });
+          } else {
+            console.error('Failed to send WhatsApp message. Response:', responseData);
+            logger.error('Failed to send WhatsApp message', {
+              statusCode: httpsRes.statusCode,
+              response: parsedResponse
+            });
+            res.status(httpsRes.statusCode).json({
+              success: false,
+              error: `Failed to send WhatsApp message: ${parsedResponse.errors || parsedResponse.message || 'Unknown error'}`,
+              details: parsedResponse
+            });
+          }
+        } catch (parseError) {
+          console.error('Error parsing response:', parseError);
+          logger.error('Error parsing response:', parseError);
+          res.status(500).json({
+            success: false,
+            error: 'Failed to parse API response',
+            details: responseData
+          });
+        }
+      });
+    });
+
+    httpsReq.on('error', (err) => {
+      console.error('Error sending WhatsApp message:', err);
+      logger.error('Error sending WhatsApp message:', err);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to send WhatsApp message',
+        message: err.message
+      });
+    });
+
+    httpsReq.write(postData);
+    httpsReq.end();
+
+  } catch (error) {
+    console.error('❌ WhatsApp API error:', error);
+    logger.error('WhatsApp API error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send WhatsApp message',
+      message: error.message || String(error)
+    });
+  }
+});

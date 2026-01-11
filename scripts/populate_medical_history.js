@@ -274,12 +274,142 @@ const medicalRecords = [
     medications: ['Joint supplement (optional)', 'Kidney diet recommended'],
     followUpRequired: true,
     followUpDate: '2024-02-10'
+  },
+
+  // Lakshmi - Holstein Friesian Cattle (MRN006)
+  {
+    id: 'bella_cattle_record_1',
+    patientId: '6',
+    petName: 'Lakshmi',
+    mrn: 'MRN006',
+    date: '2024-01-20',
+    chiefComplaint: 'Severe mastitis - acute clinical mastitis in multiple quarters',
+    diagnosis: 'Acute clinical mastitis - bacterial infection (Staphylococcus aureus)',
+    entities: ['mastitis', 'bacterial infection', 'decreased milk production', 'udder inflammation', 'staphylococcus aureus'],
+    summary: 'Lakshmi presented with acute clinical mastitis affecting left front and right rear quarters. Owner noticed significant drop in milk production, abnormal milk appearance (clots and flakes), and udder swelling. Cow appears uncomfortable and reluctant to be milked.',
+    treatedBy: 'Dr. Rajesh Kumar',
+    soapNotes: {
+      subjective: 'Owner reports Lakshmi has been producing significantly less milk for 2 days. Milk appears abnormal with clots and flakes. Cow is uncomfortable, restless, and reluctant to be milked. Appetite decreased. No recent changes in feed or milking routine.',
+      objective: 'Left front quarter: Severely swollen, hot, and painful on palpation. Milk sample shows thick, clotted discharge with foul odor. Right rear quarter: Moderate swelling and warmth. Milk appears watery with flakes. Temperature: 103.5°F (elevated). Heart rate: 85 bpm (elevated). Respiratory rate: 30 breaths/min. California Mastitis Test (CMT) positive (+++) in both affected quarters. Somatic cell count: 850,000 cells/mL (severely elevated). Bacterial culture: Staphylococcus aureus isolated.',
+      assessment: 'Acute clinical mastitis caused by Staphylococcus aureus infection in left front and right rear quarters. Severe inflammation and bacterial contamination present. Risk of systemic involvement if not treated promptly.',
+      plan: '1. Intramammary antibiotic therapy: Ceftiofur hydrochloride (500mg) into each affected quarter, twice daily for 5 days. 2. Systemic antibiotic: Penicillin G (22,000 IU/kg IM) twice daily for 5 days. 3. Anti-inflammatory: Flunixin meglumine (2.2mg/kg IV) once daily for 3 days. 4. Supportive care: Frequent milking of affected quarters (every 4-6 hours), warm compresses, udder massage. 5. Isolation from herd to prevent spread. 6. Milk discard period: 72 hours after last antibiotic treatment. 7. Recheck in 3 days to assess response. 8. Advise owner on strict milking hygiene, proper teat dipping, and environmental sanitation.'
+    },
+    medications: ['Ceftiofur hydrochloride 500mg (intramammary) BID x 5 days', 'Penicillin G 22,000 IU/kg IM BID x 5 days', 'Flunixin meglumine 2.2mg/kg IV SID x 3 days', 'Udder cream (topical)', 'Teat dip (iodine-based)'],
+    followUpRequired: true,
+    followUpDate: '2024-01-23'
+  },
+  {
+    id: 'bella_cattle_record_2',
+    patientId: '6',
+    petName: 'Lakshmi',
+    mrn: 'MRN006',
+    date: '2023-12-15',
+    chiefComplaint: 'Routine vaccination and health check',
+    diagnosis: 'Healthy dairy cow - routine care',
+    entities: ['vaccination', 'health check', 'routine care'],
+    summary: 'Lakshmi presented for routine annual vaccinations and health check. Overall health excellent with good body condition score.',
+    treatedBy: 'Dr. Rajesh Kumar',
+    soapNotes: {
+      subjective: 'Owner reports Lakshmi is doing well. Good milk production maintained. No health concerns.',
+      objective: 'Physical examination unremarkable. Body condition score: 3.5/5 (good). Heart and lungs clear. Rumen sounds normal. Udder healthy. Milk production within normal range.',
+      assessment: 'Healthy dairy cow with no abnormalities detected.',
+      plan: 'Administered annual vaccinations (FMD, Brucellosis, Blackleg). Continue current feeding and management practices. Next health check in 6 months.'
+    },
+    medications: ['FMD vaccine', 'Brucellosis vaccine', 'Blackleg vaccine'],
+    followUpRequired: false,
+    followUpDate: null
+  },
+  {
+    id: 'bella_cattle_record_3',
+    patientId: '6',
+    petName: 'Lakshmi',
+    mrn: 'MRN006',
+    date: '2023-10-05',
+    chiefComplaint: 'Mild lameness in left hind leg',
+    diagnosis: 'Mild lameness with secondary mastitis - early stage',
+    entities: ['lameness', 'mastitis', 'hind leg', 'decreased milk production'],
+    summary: 'Lakshmi presented with mild lameness on left hind leg and decreased milk production. Physical examination revealed early signs of mastitis in left rear quarter.',
+    treatedBy: 'Dr. Rajesh Kumar',
+    soapNotes: {
+      subjective: 'Owner reports Lakshmi has been producing less milk for 3 days. Noticed she is favoring left hind leg. Appetite slightly decreased. No changes in feed or environment.',
+      objective: 'Left hind leg shows mild lameness. Left rear quarter shows slight swelling and warmth. Milk sample shows increased somatic cell count. Temperature: 102.8°F (slightly elevated). Heart rate: 72 bpm. Respiratory rate: 28 breaths/min. Udder examination reveals mild inflammation in left rear quarter.',
+      assessment: 'Mild lameness in left hind leg with early-stage mastitis in left rear quarter. Secondary to possible injury or environmental factors.',
+      plan: 'Intramammary antibiotic treatment for left rear quarter. Anti-inflammatory medication (Meloxicam 15mg IM) for 3 days. Rest and isolation from herd. Monitor milk production daily. Recheck in 5 days. Advise owner on proper milking hygiene and udder care.'
+    },
+    medications: ['Intramammary antibiotic (Ceftiofur)', 'Meloxicam 15mg IM x 3 days', 'Udder cream'],
+    followUpRequired: true,
+    followUpDate: '2023-10-10'
+  },
+
+  // Raja - Sahiwal Cattle (MRN007)
+  {
+    id: 'raja_cattle_record_1',
+    patientId: '7',
+    petName: 'Raja',
+    mrn: 'MRN007',
+    date: '2024-01-18',
+    chiefComplaint: 'Foot and Mouth Disease (FMD) - suspected outbreak',
+    diagnosis: 'Foot and Mouth Disease (FMD) - confirmed by clinical signs and herd history',
+    entities: ['foot and mouth disease', 'fmd', 'vesicles', 'lameness', 'fever', 'salivation', 'viral disease'],
+    summary: 'Raja presented with clinical signs consistent with Foot and Mouth Disease. Owner reports other cattle in herd showing similar symptoms. Multiple vesicles observed on mouth, tongue, and feet. Severe lameness and excessive salivation present.',
+    treatedBy: 'Dr. Rajesh Kumar',
+    soapNotes: {
+      subjective: 'Owner reports Raja developed fever 2 days ago, followed by excessive salivation and drooling. Cow is reluctant to eat and shows severe lameness. Other cattle in the herd (3 animals) showing similar symptoms. No recent introduction of new animals, but neighboring farm reported FMD outbreak last week.',
+      objective: 'Temperature: 104.5°F (high fever). Heart rate: 95 bpm (elevated). Respiratory rate: 35 breaths/min. Multiple vesicles (2-3cm) observed on: tongue, hard palate, dental pad, and lips. Interdigital space of all four feet shows vesicles and erosions. Coronary band of front hooves affected. Severe lameness - cow reluctant to bear weight on front feet. Excessive salivation with stringy drool. Milk production significantly decreased. Vesicular fluid sample collected for laboratory confirmation. No vesicles on teats or udder.',
+      assessment: 'Clinical diagnosis: Foot and Mouth Disease (FMD) - highly contagious viral disease. Confirmed by characteristic vesicular lesions on mouth and feet, fever, lameness, and herd history. Immediate isolation and reporting required.',
+      plan: '1. IMMEDIATE ISOLATION: Separate from all other animals. Strict biosecurity measures implemented. 2. REPORTING: Notified state veterinary authorities and district animal husbandry department (FMD is notifiable disease). 3. Supportive treatment: Antipyretics (Paracetamol 10mg/kg PO BID) for fever. 4. Topical treatment: Apply antiseptic solution (Potassium permanganate 1%) to foot lesions twice daily. 5. Soft, palatable feed: Provide soft hay and fresh water. 6. Pain management: Meloxicam 0.5mg/kg IM once daily for 3 days. 7. Antibiotic cover: Oxytetracycline 10mg/kg IM once daily for 5 days to prevent secondary bacterial infections. 8. Rest and comfort: Provide soft bedding, minimize movement. 9. Quarantine: Entire herd under quarantine for minimum 21 days. 10. Disinfection: All equipment, vehicles, and personnel must be disinfected. 11. Vaccination: Rest of herd to be vaccinated immediately with FMD vaccine. 12. Monitoring: Daily temperature and clinical signs monitoring. 13. Follow-up: Recheck in 3 days. Report any new cases immediately.'
+    },
+    medications: ['Paracetamol 10mg/kg PO BID (fever management)', 'Meloxicam 0.5mg/kg IM SID x 3 days (pain relief)', 'Oxytetracycline 10mg/kg IM SID x 5 days (secondary infection prevention)', 'Potassium permanganate 1% solution (topical foot treatment)', 'FMD vaccine (for rest of herd)'],
+    followUpRequired: true,
+    followUpDate: '2024-01-21'
+  },
+  {
+    id: 'raja_cattle_record_2',
+    patientId: '7',
+    petName: 'Raja',
+    mrn: 'MRN007',
+    date: '2023-11-20',
+    chiefComplaint: 'Hoof overgrowth and routine health check',
+    diagnosis: 'Hoof overgrowth requiring trimming',
+    entities: ['hoof overgrowth', 'hoof trimming', 'routine check'],
+    summary: 'Raja presented for routine health check. Hoof overgrowth noted requiring professional trimming.',
+    treatedBy: 'Dr. Rajesh Kumar',
+    soapNotes: {
+      subjective: 'Owner reports Raja is active and breeding well. No lameness noted. Regular feeding and exercise maintained.',
+      objective: 'Physical examination shows significant hoof overgrowth, particularly in front hooves. No signs of lameness or hoof disease. Body condition good. Heart and lungs clear. Testicular examination normal.',
+      assessment: 'Hoof overgrowth requiring professional trimming. Otherwise healthy breeding bull.',
+      plan: 'Hoof trimming performed on all four hooves. Regular hoof maintenance schedule recommended every 3-4 months. Continue current management practices. Monitor for any signs of lameness.'
+    },
+    medications: ['Hoof trimming', 'Hoof antiseptic'],
+    followUpRequired: false,
+    followUpDate: null
+  },
+  {
+    id: 'raja_cattle_record_3',
+    patientId: '7',
+    petName: 'Raja',
+    mrn: 'MRN007',
+    date: '2023-09-10',
+    chiefComplaint: 'Routine vaccination and breeding health check',
+    diagnosis: 'Healthy breeding bull - routine care',
+    entities: ['vaccination', 'health check', 'routine care', 'breeding'],
+    summary: 'Raja presented for routine annual vaccinations and breeding health assessment. Overall health excellent with good body condition.',
+    treatedBy: 'Dr. Rajesh Kumar',
+    soapNotes: {
+      subjective: 'Owner reports Raja is performing well in breeding. Good appetite maintained. No health concerns.',
+      objective: 'Physical examination unremarkable. Body condition score: 4/5 (excellent). Heart and lungs clear. Testicular examination normal. Hooves in good condition. Strong and active.',
+      assessment: 'Healthy breeding bull with excellent body condition. No abnormalities detected.',
+      plan: 'Administered annual vaccinations (FMD, Anthrax). Continue current management and feeding practices. Regular health monitoring. Next health check in 6 months.'
+    },
+    medications: ['FMD vaccine', 'Anthrax vaccine'],
+    followUpRequired: false,
+    followUpDate: null
   }
 ];
 
 async function populateMedicalHistory() {
   console.log('🚀 Starting medical history population...');
-  
+
   const collection = db.collection('past_medical_records');
   let successCount = 0;
   let errorCount = 0;
