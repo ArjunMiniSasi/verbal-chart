@@ -1577,6 +1577,51 @@ Required structure:
     return flags;
   }
 
+  function validatePlanStructure(planText) {
+    const errors = [];
+  
+    if (!/\*Diagnosis:\*/i.test(planText)) {
+      errors.push('Missing Diagnosis section');
+    }
+  
+    if (!/mg\/kg/i.test(planText)) {
+      errors.push('Missing dosage (mg/kg)');
+    }
+  
+    if (!/(once|twice|daily|q\d+h|every)/i.test(planText)) {
+      errors.push('Missing frequency information');
+    }
+  
+    return errors;
+  }
+
+  function dosageOutOfRange(planText) {
+    const matches = planText.match(/(\d+\.?\d*)\s*mg\/kg/gi);
+    if (!matches) return false;
+  
+    for (const m of matches) {
+      const val = parseFloat(m);
+      if (val <= 0 || val > 100) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function classifyRisk(evidence) {
+    const normalized = (evidence || []).map(e => e.normalized?.toLowerCase());
+  
+    if (normalized.includes('shock') || normalized.includes('sepsis')) {
+      return 'high';
+    }
+  
+    if (normalized.includes('vomiting') || normalized.includes('diarrhea')) {
+      return 'moderate';
+    }
+  
+    return 'low';
+  }
+
   //
   // Medication checker that uses local Plumb embeddings search + simple species check
   // (re-uses your searchPlumbData function to find plumb references)
@@ -1644,114 +1689,91 @@ Required structure:
     if (!transcript || typeof transcript !== 'string') {
       return res.status(400).json({ error: 'transcript (string) required' });
     }
-
+  
     const requestId = `ground__${Date.now()}`;
-    const audit = { id: requestId, createdAt: new Date().toISOString(), transcript: transcript.slice(0,1000), meta, steps: {} };
-
+    const audit = {
+      id: requestId,
+      createdAt: new Date().toISOString(),
+      transcript: transcript.slice(0, 1000),
+      meta,
+      steps: {}
+    };
+  
     try {
+      // -------------------------------------------------
       // 1) Evidence extraction
+      // -------------------------------------------------
       const evPrompt = evidenceExtractionPrompt(transcript);
       const evRaw = await callLLMChat(evPrompt, { max_tokens: 800 });
+  
       let evidenceJson = { evidence: [] };
       try {
-        // Try to parse directly first
         evidenceJson = JSON.parse(evRaw);
-      } catch (e) {
-        // Strip markdown code fences if present
-        let cleaned = evRaw.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
-        try {
-          evidenceJson = JSON.parse(cleaned);
-        } catch (e2) {
-          // Try to extract JSON object from the response
-          const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            try {
-              evidenceJson = JSON.parse(jsonMatch[0]);
-            } catch (e3) {
-              console.error('Failed to parse evidence JSON:', evRaw.substring(0, 200));
-              throw new Error('Evidence extractor returned non-JSON response: ' + e3.message);
-            }
-          } else {
-            console.error('No JSON found in evidence response:', evRaw.substring(0, 200));
-            throw new Error('Evidence extractor returned non-JSON response: no JSON object found');
-          }
-        }
+      } catch {
+        const cleaned = evRaw.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error('Evidence extractor returned non-JSON response');
+        evidenceJson = JSON.parse(match[0]);
       }
-      // normalize missing normalized keys
+  
       evidenceJson.evidence = (evidenceJson.evidence || []).map((it, idx) => {
         if (!it.normalized) {
-          const norm = (it.quote || it.type || `e${idx}`).toLowerCase().replace(/[^a-z0-9]+/g,'_').slice(0,40);
-          it.normalized = norm;
+          it.normalized = (it.quote || it.type || `e${idx}`)
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .slice(0, 40);
         }
         return it;
       });
+  
       audit.steps.evidenceCount = evidenceJson.evidence.length;
-
-      // 2) Rule-based pre-check
+  
+      // -------------------------------------------------
+      // 2) Rule-based pre-check (symptom logic)
+      // -------------------------------------------------
       const ruleFlags = ruleValidate(evidenceJson.evidence);
       audit.steps.ruleFlags = ruleFlags;
-
-      // 3) Generate SOAP from evidence ONLY
+  
+      // -------------------------------------------------
+      // 3) Generate SOAP from evidence only
+      // -------------------------------------------------
       const soapPrompt = soapFromEvidencePrompt(evidenceJson.evidence);
       const soapRaw = await callLLMChat(soapPrompt, { max_tokens: 1000 });
+  
       let soapJson = {};
       try {
         soapJson = JSON.parse(soapRaw);
-      } catch (e) {
-        // Strip markdown code fences if present
-        let cleaned = soapRaw.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
-        try {
-          soapJson = JSON.parse(cleaned);
-        } catch (e2) {
-          const m = cleaned.match(/\{[\s\S]*\}/);
-          if (m) {
-            try {
-              soapJson = JSON.parse(m[0]);
-            } catch (e3) {
-              console.error('Failed to parse SOAP JSON:', soapRaw.substring(0, 200));
-              throw new Error('SOAP generator returned non-JSON response: ' + e3.message);
-            }
-          } else {
-            console.error('No JSON found in SOAP response:', soapRaw.substring(0, 200));
-            throw new Error('SOAP generator returned non-JSON response: no JSON object found');
-          }
-        }
+      } catch {
+        const cleaned = soapRaw.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error('SOAP generator returned non-JSON response');
+        soapJson = JSON.parse(match[0]);
       }
+  
       audit.steps.soapDraft = soapJson;
-
-      // 4) Verifier: ensure each SOAP claim maps to evidence
+  
+      // -------------------------------------------------
+      // 4) Verifier grounding check
+      // -------------------------------------------------
       const verPrompt = verifierPrompt(transcript, evidenceJson, soapJson);
       const verRaw = await callLLMChat(verPrompt, { max_tokens: 800 });
+  
       let verJson = {};
       try {
         verJson = JSON.parse(verRaw);
-      } catch (e) {
-        // Strip markdown code fences if present
-        let cleaned = verRaw.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
-        try {
-          verJson = JSON.parse(cleaned);
-        } catch (e2) {
-          const m = cleaned.match(/\{[\s\S]*\}/);
-          if (m) {
-            try {
-              verJson = JSON.parse(m[0]);
-            } catch (e3) {
-              console.error('Failed to parse verifier JSON:', verRaw.substring(0, 200));
-              throw new Error('Verifier returned non-JSON response: ' + e3.message);
-            }
-          } else {
-            console.error('No JSON found in verifier response:', verRaw.substring(0, 200));
-            throw new Error('Verifier returned non-JSON response: no JSON object found');
-          }
-        }
+      } catch {
+        const cleaned = verRaw.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error('Verifier returned non-JSON response');
+        verJson = JSON.parse(match[0]);
       }
+  
       audit.steps.verifier = verJson;
-
-      // If invalid claims exist, return review_required with cleaned soap and invalid list
-      const invalidCount = Object.values(verJson.invalid || {}).reduce((acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0), 0);
+  
+      const invalidCount = Object.values(verJson.invalid || {})
+        .reduce((acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0), 0);
+  
       if (invalidCount > 0) {
-        // attach evidence references to the SOAP draft and return review_required
-        audit.steps.invalid = verJson.invalid;
         return res.status(200).json({
           id: requestId,
           status: 'review_required',
@@ -1761,13 +1783,47 @@ Required structure:
           evidence: evidenceJson
         });
       }
-
-      // 5) Medication check on plan text (if any)
-      const planText = typeof soapJson.plan === 'string' ? soapJson.plan : JSON.stringify(soapJson.plan || {});
+  
+      // -------------------------------------------------
+      // 5) Structural plan validation
+      // -------------------------------------------------
+      const planText =
+        typeof soapJson.plan === 'string'
+          ? soapJson.plan
+          : JSON.stringify(soapJson.plan || {});
+  
+      const structureErrors = validatePlanStructure(planText);
+      if (structureErrors.length > 0) {
+        return res.status(200).json({
+          id: requestId,
+          status: 'review_required',
+          reason: 'Plan structure validation failed',
+          structureErrors,
+          soap: soapJson,
+          evidence: evidenceJson
+        });
+      }
+  
+      // -------------------------------------------------
+      // 6) Dosage sanity validation
+      // -------------------------------------------------
+      if (dosageOutOfRange(planText)) {
+        return res.status(200).json({
+          id: requestId,
+          status: 'review_required',
+          reason: 'Dosage out of safe range detected',
+          soap: soapJson,
+          evidence: evidenceJson
+        });
+      }
+  
+      // -------------------------------------------------
+      // 7) Medication Plumb validation
+      // -------------------------------------------------
       const medCheck = await medChecker(planText, meta);
       audit.steps.medCheck = medCheck;
-
-      if (medCheck.warnings && medCheck.warnings.length) {
+  
+      if (medCheck.warnings && medCheck.warnings.length > 0) {
         return res.status(200).json({
           id: requestId,
           status: 'med_review_required',
@@ -1777,32 +1833,58 @@ Required structure:
           evidence: evidenceJson
         });
       }
-
-      // 6) Final: return grounded SOAP + evidence + audit pointer
+  
+      // -------------------------------------------------
+      // 8) Risk classification
+      // -------------------------------------------------
+      const riskLevel = classifyRisk(evidenceJson.evidence);
+      audit.steps.riskLevel = riskLevel;
+  
+      if (riskLevel === 'high') {
+        return res.status(200).json({
+          id: requestId,
+          status: 'review_required',
+          reason: 'High clinical risk case — manual review recommended',
+          riskLevel,
+          soap: soapJson,
+          evidence: evidenceJson
+        });
+      }
+  
+      // -------------------------------------------------
+      // 9) Final success
+      // -------------------------------------------------
       audit.steps.final = { status: 'ok' };
-      // optionally persist audit to disk (small)
+  
       try {
         const AUDIT_DIR = path.resolve(__dirname, 'audit_grounding');
         if (!fs.existsSync(AUDIT_DIR)) fs.mkdirSync(AUDIT_DIR);
-        fs.writeFileSync(path.join(AUDIT_DIR, `${requestId}.json`), JSON.stringify(audit, null, 2));
+        fs.writeFileSync(
+          path.join(AUDIT_DIR, `${requestId}.json`),
+          JSON.stringify(audit, null, 2)
+        );
       } catch (e) {
-        console.warn('Failed to write grounding audit:', e.message || e);
+        console.warn('Failed to write grounding audit:', e.message);
       }
-
+  
       return res.json({
         id: requestId,
         status: 'ok',
+        riskLevel,
         soap: soapJson,
         evidence: evidenceJson,
         medCheck
       });
-
+  
     } catch (err) {
       console.error('grounded-note error', err);
-      return res.status(500).json({ error: 'grounded-note failed', message: err.message || String(err) });
+      return res.status(500).json({
+        error: 'grounded-note failed',
+        message: err.message || String(err)
+      });
     }
   });
-
+  
 
   // ------------- Error middleware -------------
   app.use((err, req, res, next) => {
