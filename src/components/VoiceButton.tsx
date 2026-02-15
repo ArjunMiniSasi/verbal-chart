@@ -132,11 +132,18 @@ export const VoiceButton = () => {
       
       console.log('🔄 Created audio file:', audioFile.name, 'Size:', audioFile.size);
       
-      // Show processing message
-      toast({
-        title: "Processing Recording",
-        description: `Transcribing ${recordingTime}s of audio...`,
-      });
+      // Show processing message only if recording time is valid
+      if (recordingTime > 0) {
+        toast({
+          title: "Processing Recording",
+          description: `Transcribing ${recordingTime}s of audio...`,
+        });
+      } else {
+        toast({
+          title: "Processing Recording",
+          description: "Transcribing your audio...",
+        });
+      }
       
       // Step 1: Transcribe audio
       const result = await transcribeAudio(audioFile);
