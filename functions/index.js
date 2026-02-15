@@ -1192,11 +1192,26 @@ exports.generatePlan = functions
       const { assessment, diagnosis, symptoms, subjective, objective, k = 5 } = req.body;
 
       let queryParts = [];
-      if (subjective) queryParts.push(`Subjective: ${subjective}`);
-      if (objective) queryParts.push(`Objective: ${objective}`);
-      if (assessment) queryParts.push(`Assessment: ${assessment}`);
-      if (diagnosis && !assessment) queryParts.push(`Diagnosis: ${diagnosis}`);
-      if (symptoms && !subjective) queryParts.push(`Symptoms: ${symptoms}`);
+      if (subjective) {
+        const subjStr = typeof subjective === 'string' ? subjective : String(subjective || '');
+        queryParts.push(`Subjective: ${subjStr}`);
+      }
+      if (objective) {
+        const objStr = typeof objective === 'string' ? objective : String(objective || '');
+        queryParts.push(`Objective: ${objStr}`);
+      }
+      if (assessment) {
+        const assStr = typeof assessment === 'string' ? assessment : String(assessment || '');
+        queryParts.push(`Assessment: ${assStr}`);
+      }
+      if (diagnosis && !assessment) {
+        const diagStr = typeof diagnosis === 'string' ? diagnosis : String(diagnosis || '');
+        queryParts.push(`Diagnosis: ${diagStr}`);
+      }
+      if (symptoms && !subjective) {
+        const sympStr = typeof symptoms === 'string' ? symptoms : String(symptoms || '');
+        queryParts.push(`Symptoms: ${sympStr}`);
+      }
 
       if (queryParts.length === 0) {
         return res.status(400).json({ error: 'At least one of: assessment, diagnosis, symptoms, subjective, or objective is required' });
@@ -1207,9 +1222,18 @@ exports.generatePlan = functions
 
       console.log('🔍 Generating treatment plan using Plumb data from Firebase Firestore...');
       console.log('📝 [PLUMB RAG DEBUG] SOA Query constructed from:');
-      if (subjective) console.log(`   - Subjective: ${subjective.substring(0, 100)}...`);
-      if (objective) console.log(`   - Objective: ${objective.substring(0, 100)}...`);
-      if (assessment) console.log(`   - Assessment: ${assessment.substring(0, 100)}...`);
+      if (subjective) {
+        const subjStr = typeof subjective === 'string' ? subjective : String(subjective || '');
+        console.log(`   - Subjective: ${subjStr.substring(0, 100)}...`);
+      }
+      if (objective) {
+        const objStr = typeof objective === 'string' ? objective : String(objective || '');
+        console.log(`   - Objective: ${objStr.substring(0, 100)}...`);
+      }
+      if (assessment) {
+        const assStr = typeof assessment === 'string' ? assessment : String(assessment || '');
+        console.log(`   - Assessment: ${assStr.substring(0, 100)}...`);
+      }
       console.log('📝 [PLUMB RAG DEBUG] Enhanced Query:', enhancedQuery);
 
       // Search Plumb data from Firebase Firestore

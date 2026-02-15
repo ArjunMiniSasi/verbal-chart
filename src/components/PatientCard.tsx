@@ -69,14 +69,9 @@ export const PatientCard = ({ patient, variant = 'default' }: PatientCardProps) 
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-green-100 text-green-800">
-                Active
-              </Badge>
-              <Button variant="ghost" size="sm">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button variant="ghost" size="sm">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
           </div>
       </div>
     )
@@ -102,14 +97,9 @@ export const PatientCard = ({ patient, variant = 'default' }: PatientCardProps) 
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-green-100 text-green-800">
-                Active
-              </Badge>
-              <Button variant="ghost" size="sm">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button variant="ghost" size="sm">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
           </div>
         </div>
         <div className="space-y-4">
@@ -130,6 +120,12 @@ export const PatientCard = ({ patient, variant = 'default' }: PatientCardProps) 
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-muted-foreground">Last visit:</span>
             <span>{patient.lastVisit}</span>
+            {patient.pet.lastConsultedDoctor && (
+              <>
+                <span className="text-muted-foreground">•</span>
+                <span className="text-muted-foreground">Consulted: {patient.pet.lastConsultedDoctor}</span>
+              </>
+            )}
           </div>
 
           {/* Last SOAP Preview */}
@@ -175,38 +171,40 @@ export const PatientCard = ({ patient, variant = 'default' }: PatientCardProps) 
       className="p-4 border rounded bg-white hover:shadow-md transition-shadow cursor-pointer"
       onClick={handleViewPatient}
     >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-medical-primary/10 rounded-full flex items-center justify-center">
-              <User className="h-5 w-5 text-medical-primary" />
-            </div>
-            <div>
-              <h3 className="font-medium">{patient.pet.name}</h3>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>{patient.mrn}</span>
-                <span>•</span>
-                <span>{patient.pet.age}y</span>
-                <span>•</span>
-                <span className="capitalize">{patient.pet.gender}</span>
-              </div>
-            </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 bg-medical-primary/10 rounded-full flex items-center justify-center">
+            <User className="h-5 w-5 text-medical-primary" />
           </div>
-          <div className="flex items-center gap-2">
-            <Badge className="bg-green-100 text-green-800">
-              Active
-            </Badge>
+          <div>
+            <h3 className="font-medium">{patient.pet.name}</h3>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>{patient.mrn}</span>
+              <span>•</span>
+              <span>{patient.pet.age}y</span>
+              <span>•</span>
+              <span className="capitalize">{patient.pet.species}</span>
+              <span>•</span>
+              <span className="capitalize">{patient.pet.gender}</span>
+            </div>
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Clock className="h-4 w-4" />
-            <span>Last visit: {patient.lastVisit}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <FileText className="h-4 w-4" />
-            <span className="line-clamp-1">Owner: {patient.owner.name}</span>
-          </div>
+      </div>
+      <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-1">
+          <span>Owner: {patient.owner.name}</span>
         </div>
+        <div className="flex items-center gap-1">
+          <Clock className="h-4 w-4" />
+          <span>Last visit: {patient.lastVisit}</span>
+          {patient.pet.lastConsultedDoctor && (
+            <>
+              <span>•</span>
+              <span>Consulted: {patient.pet.lastConsultedDoctor}</span>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

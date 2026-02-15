@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DoctorHeader } from "@/components/DoctorHeader"
 import { SearchBar } from "@/components/SearchBar"
 import { AddPatientModal } from "@/components/AddPatientModal"
+import { NewPatientConsultationButton } from "@/components/NewPatientConsultationModal"
 import { PatientCard } from "@/components/PatientCard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -25,16 +26,45 @@ import {
 import { useNavigate } from "react-router-dom"
 import { useMedoraStore } from "@/stores/medoraStore"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/hooks/useFirebase"
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { mockPatients } from "@/mocks/seeds"
 
 const DoctorHome = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { user } = useAuth()
   const { clearSOAPNote, clearTranscript } = useMedoraStore()
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [scheduleDate, setScheduleDate] = useState('')
   const [scheduleTime, setScheduleTime] = useState('')
   const [scheduleReason, setScheduleReason] = useState('')
+  const [doctorName, setDoctorName] = useState('Dr. Smith')
+
+  // Fetch doctor name from Firestore
+  useEffect(() => {
+    const fetchDoctorName = async () => {
+      if (user) {
+        try {
+          const userDocRef = doc(db, 'doctors', user.uid)
+          const userDoc = await getDoc(userDocRef)
+          
+          if (userDoc.exists()) {
+            const data = userDoc.data()
+            setDoctorName(data.displayName || user.displayName || 'Dr. Smith')
+          } else {
+            setDoctorName(user.displayName || user.email?.split('@')[0] || 'Dr. Smith')
+          }
+        } catch (error) {
+          console.error('Error fetching doctor name:', error)
+          setDoctorName(user.displayName || user.email?.split('@')[0] || 'Dr. Smith')
+        }
+      }
+    }
+
+    fetchDoctorName()
+  }, [user])
 
   // Use the mock patients from seeds
   const allPatients = mockPatients
@@ -42,6 +72,12 @@ const DoctorHome = () => {
   // Filter patients - for now, just use all patients for both tabs
   const pendingPatients = allPatients.slice(0, 3) // First 3 patients as "pending"
   const donePatients = allPatients.slice(3) // Rest as "done"
+  
+  // Categorize upcoming patients into New case and Follow up
+  // New case: Patients with no previous visits or first visit
+  // Follow up: Patients with previous visits
+  const newCasePatients = pendingPatients.filter((patient, index) => index % 2 === 0) // Simulate: every other patient is new case
+  const followUpPatients = pendingPatients.filter((patient, index) => index % 2 === 1) // Simulate: others are follow-ups
 
   const analyticsData = {
     totalPatients: 1247,
@@ -65,7 +101,7 @@ const DoctorHome = () => {
             {/* Welcome Section */}
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">
-                Welcome back, Dr. Smith
+                Welcome back, {doctorName}
               </h1>
               <p className="text-muted-foreground">
                 Here's what's happening with your patients today.
@@ -98,6 +134,7 @@ const DoctorHome = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                <NewPatientConsultationButton />
                 <AddPatientModal />
                 <div className="grid grid-cols-2 gap-3">
                   <Button 
@@ -135,53 +172,74 @@ const DoctorHome = () => {
             </div>
             
             {/* Patient Tabs */}
-            <Tabs defaultValue="all" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="all" className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  All ({allPatients.length})
+            <Tabs defaultValue="upcoming" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="upcoming" className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Upcoming ({pendingPatients.length})
                 </TabsTrigger>
-                <TabsTrigger value="pending" className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  Pending ({pendingPatients.length})
-                </TabsTrigger>
-                <TabsTrigger value="done" className="flex items-center gap-2">
+                <TabsTrigger value="completed" className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4" />
-                  Done ({donePatients.length})
+                  Completed ({donePatients.length})
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="all" className="space-y-4 mt-6">
-                {allPatients.map((patient) => (
-                  <PatientCard 
-                    key={patient.id} 
-                    patient={patient} 
-                    variant="default" 
-                  />
-                ))}
+              <TabsContent value="upcoming" className="space-y-4 mt-6">
+                <Tabs defaultValue="new-case" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 mb-4">
+                    <TabsTrigger value="new-case" className="flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      New case ({newCasePatients.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="follow-up" className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Follow up ({followUpPatients.length})
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="new-case" className="space-y-4">
+                    {newCasePatients.length === 0 ? (
+                      <Card>
+                        <CardContent className="text-center py-8">
+                          <Plus className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-medium mb-2">No New Cases</h3>
+                          <p className="text-muted-foreground">No new patients scheduled for today.</p>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      newCasePatients.map((patient) => (
+                        <PatientCard 
+                          key={patient.id} 
+                          patient={patient} 
+                          variant="default" 
+                        />
+                      ))
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="follow-up" className="space-y-4">
+                    {followUpPatients.length === 0 ? (
+                      <Card>
+                        <CardContent className="text-center py-8">
+                          <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-medium mb-2">No Follow-up Appointments</h3>
+                          <p className="text-muted-foreground">No follow-up patients scheduled for today.</p>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      followUpPatients.map((patient) => (
+                        <PatientCard 
+                          key={patient.id} 
+                          patient={patient} 
+                          variant="default" 
+                        />
+                      ))
+                    )}
+                  </TabsContent>
+                </Tabs>
               </TabsContent>
 
-              <TabsContent value="pending" className="space-y-4 mt-6">
-                {pendingPatients.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-8">
-                      <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No Pending Appointments</h3>
-                      <p className="text-muted-foreground">All patients for today have been seen.</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  pendingPatients.map((patient) => (
-                    <PatientCard 
-                      key={patient.id} 
-                      patient={patient} 
-                      variant="default" 
-                    />
-                  ))
-                )}
-              </TabsContent>
-
-              <TabsContent value="done" className="space-y-4 mt-6">
+              <TabsContent value="completed" className="space-y-4 mt-6">
                 {donePatients.length === 0 ? (
                   <Card>
                     <CardContent className="text-center py-8">

@@ -28,7 +28,9 @@ import { SOAPEditor } from "@/components/SOAPEditor"
 import { CaseSummary } from "@/components/CaseSummary"
 import MedicalHistory from "@/components/MedicalHistory"
 import PetOwnerCard from "@/components/PetOwnerCard"
+import { PetProfileSidebar } from "@/components/PetProfileSidebar"
 import { PreviewModal } from "@/components/PreviewModal"
+import { Phone, Mail } from "lucide-react"
 import { useMedoraStore } from "@/stores/medoraStore"
 import { useToast } from "@/hooks/use-toast"
 import { Patient, mockPatients, mockHistoryRecords, HistoryRecord } from "@/mocks/seeds"
@@ -243,11 +245,22 @@ const PatientTemplate = () => {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="text-right text-sm text-muted-foreground">
-                <div>Owner: {patientData.owner.name}</div>
-                <div>MRN: {patientData.mrn}</div>
-                <div>Last Visit: {patientData.lastVisit}</div>
+            <div className="flex items-center gap-4">
+              <div className="text-right text-sm">
+                <div className="font-semibold text-foreground">{patientData.pet.name}</div>
+                <div className="text-muted-foreground">Owner: {patientData.owner.name}</div>
+                <div className="flex items-center gap-3 mt-2">
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <Phone className="h-3 w-3" />
+                    <span className="text-xs">{patientData.owner.phone}</span>
+                  </div>
+                  {patientData.owner.email && (
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <Mail className="h-3 w-3" />
+                      <span className="text-xs">{patientData.owner.email}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -256,168 +269,49 @@ const PatientTemplate = () => {
 
       <div className="container mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Section - Compact Pet/Owner Card and Quick Actions */}
+          {/* Left Section - Pet Profile Sidebar */}
           <div className="space-y-6">
-            {/* Compact Pet/Owner Card */}
-            <PetOwnerCard 
-              pet={patientData.pet} 
-              owner={patientData.owner}
-              lastVisit={patientData.lastVisit}
-            />
-
-            {/* Quick Actions */}
+            <PetProfileSidebar pet={patientData.pet} />
+            
+            {/* Audio Recording - Live Voice Recording */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Mic className="h-4 w-4" />
+                  Audio Recording
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">Audio Input</h4>
-                  <AudioUpload />
+              <CardContent className="space-y-4">
+                {/* Live Voice Recording Button */}
+                <div className="text-center">
+                  <VoiceButton />
                 </div>
                 
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">Clinical Actions</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="gap-2"
-                      onClick={() => {
-                        clearSOAPNote()
-                        clearTranscript()
-                        toast({
-                          title: "New SOAP Note",
-                          description: "SOAP note and transcript cleared. Ready for new entry.",
-                        })
-                      }}
-                    >
-                      <FileText className="h-4 w-4" />
-                      New SOAP
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="gap-2"
-                      onClick={() => {
-                        // Scroll to SOAP tab and focus on Objective section
-                        const soapTab = document.querySelector('[value="soap"]')
-                        if (soapTab) {
-                          (soapTab as HTMLElement).click()
-                          setTimeout(() => {
-                            const objectiveTextarea = document.querySelector('textarea[placeholder*="Physical examination"]') as HTMLTextAreaElement
-                            if (objectiveTextarea) {
-                              objectiveTextarea.focus()
-                              objectiveTextarea.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                            }
-                          }, 100)
-                        }
-                        toast({
-                          title: "Exam Section",
-                          description: "Navigate to Objective section for exam findings.",
-                        })
-                      }}
-                    >
-                      <Stethoscope className="h-4 w-4" />
-                      Exam
-                    </Button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">Or</span>
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">Scheduling</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="gap-2"
-                      onClick={() => setShowScheduleModal(true)}
-                    >
-                      <Calendar className="h-4 w-4" />
-                      Schedule
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="gap-2"
-                      onClick={() => setShowFollowUpModal(true)}
-                    >
-                      <Clock className="h-4 w-4" />
-                      Follow-up
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">Alerts</h4>
-                  <div className="space-y-1">
-                    {patientData.pet.vaccinations.filter(v => v.status === 'Overdue').length > 0 && (
-                      <div className="flex items-center gap-2 p-2 bg-red-50 rounded-lg">
-                        <AlertCircle className="h-4 w-4 text-red-600" />
-                        <span className="text-sm text-red-700">
-                          {patientData.pet.vaccinations.filter(v => v.status === 'Overdue').length} vaccination(s) overdue
-                        </span>
-                      </div>
-                    )}
-                    {patientData.pet.vaccinations.filter(v => v.status === 'Upcoming').length > 0 && (
-                      <div className="flex items-center gap-2 p-2 bg-yellow-50 rounded-lg">
-                        <Activity className="h-4 w-4 text-yellow-600" />
-                        <span className="text-sm text-yellow-700">
-                          {patientData.pet.vaccinations.filter(v => v.status === 'Upcoming').length} vaccination(s) due soon
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                
+                {/* Audio File Upload */}
+                <AudioUpload />
               </CardContent>
             </Card>
           </div>
 
-          {/* Right Section - Live Recording and Results */}
+          {/* Middle Section - Clinical History and SOAP Notes */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Live Recording Section - Center Focus */}
-            <Card className="border-2 border-medical-primary/20">
-              <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center gap-2 text-xl">
-                  <Mic className="h-6 w-6 text-medical-primary" />
-                  Live Voice Recording
-                </CardTitle>
-                <p className="text-muted-foreground">
-                  Start recording to capture consultation for {patientData.pet.name}
-                </p>
-              </CardHeader>
-              <CardContent className="text-center space-y-6">
-                {/* Voice Recording Component */}
-                <VoiceButton />
-              </CardContent>
-            </Card>
 
-            {/* Tabs for Results */}
-            <Tabs defaultValue="transcript" className="w-full">
+            {/* Tabs for Results - Clinical History is default */}
+            <Tabs defaultValue="history" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="transcript">Live Transcript</TabsTrigger>
-                <TabsTrigger value="soap">SOAP Notes</TabsTrigger>
                 <TabsTrigger value="history">Clinical History</TabsTrigger>
+                <TabsTrigger value="transcript">Running Transcript</TabsTrigger>
+                <TabsTrigger value="soap">SOAP Notes</TabsTrigger>
               </TabsList>
-
-              <TabsContent value="transcript" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-medical-primary" />
-                      Live Transcript
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Transcript />
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="soap" className="space-y-6">
-                <SOAPEditor />
-                {transcript.length > 0 && <CaseSummary />}
-              </TabsContent>
 
               <TabsContent value="history" className="space-y-6">
                 {isLoadingHistory ? (
@@ -435,6 +329,45 @@ const PatientTemplate = () => {
                     historyRecords={medicalHistory}
                   />
                 )}
+              </TabsContent>
+
+              <TabsContent value="transcript" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-medical-primary" />
+                      Running Transcript
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Transcript is being recorded. This is for your awareness only.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Audio Recording UI */}
+                    <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-muted rounded-lg bg-muted/30">
+                      <div className="mb-4">
+                        <VoiceButton />
+                      </div>
+                      <p className="text-sm text-muted-foreground text-center">
+                        Click the microphone to start recording
+                      </p>
+                    </div>
+                    
+                    {/* Transcript Display */}
+                    <div>
+                      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Transcript
+                      </h3>
+                      <Transcript />
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="soap" className="space-y-6">
+                <SOAPEditor />
+                {transcript.length > 0 && <CaseSummary />}
               </TabsContent>
             </Tabs>
           </div>

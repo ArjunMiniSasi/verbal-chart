@@ -83,6 +83,9 @@ export interface Suggestion {
 export interface SOAPNote {
   id: string;
   patientId: string;
+  petId: string; // Tag to pet
+  doctorId: string; // Tag to doctor
+  doctorName: string; // Doctor name for display
   date: string;
   subjective: string;
   objective: string;

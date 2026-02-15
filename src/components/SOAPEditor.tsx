@@ -8,6 +8,7 @@ import { useMedoraStore } from "@/stores/medoraStore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { PrescriptionTable } from "@/components/PrescriptionTable";
+import { MedicationInsights } from "@/components/MedicationInsights";
 
 // Use the same API base URL as other components
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -245,9 +246,9 @@ export const SOAPEditor = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          subjective: soapNote.subjective,
-          objective: soapNote.objective,
-          assessment: soapNote.assessment,
+          subjective: typeof soapNote.subjective === 'string' ? soapNote.subjective : String(soapNote.subjective || ''),
+          objective: typeof soapNote.objective === 'string' ? soapNote.objective : String(soapNote.objective || ''),
+          assessment: typeof soapNote.assessment === 'string' ? soapNote.assessment : String(soapNote.assessment || ''),
           k: 5 // Number of Plumb references to use
         }),
       });
@@ -351,7 +352,8 @@ ${soapNote.plan}
     });
   };
 
-  const wordCount = (text: string) => {
+  const wordCount = (text: string | undefined | null) => {
+    if (!text || typeof text !== 'string') return 0;
     return text.trim().split(/\s+/).filter(word => word.length > 0).length;
   };
 
@@ -388,7 +390,7 @@ ${soapNote.plan}
 
 
 
-  const totalWords = wordCount(soapNote.subjective) + wordCount(soapNote.objective) + wordCount(soapNote.assessment) + wordCount(soapNote.plan);
+  const totalWords = wordCount(soapNote.subjective) + wordCount(soapNote.objective) + wordCount(soapNote.assessment) + wordCount(soapNote.plan || '');
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -694,6 +696,8 @@ ${soapNote.plan}
                                     }}
                                     className="min-h-[100px] resize-none border-0 focus:ring-0 p-0 text-sm leading-relaxed"
                                   />
+                                  {/* Medication Insights */}
+                                  <MedicationInsights planText={medication} />
                                 </div>
                               </div>
                             </div>

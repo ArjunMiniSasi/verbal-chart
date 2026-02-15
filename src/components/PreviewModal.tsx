@@ -13,6 +13,10 @@ import { Download, Save, FileText, User, Calendar } from "lucide-react";
 import { useMedoraStore } from "@/stores/medoraStore";
 import { mockRecords } from "@/mocks/seeds";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useFirebase";
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useState, useEffect } from 'react';
 
 export const PreviewModal = () => {
   const { 
@@ -22,6 +26,32 @@ export const PreviewModal = () => {
     currentPatient 
   } = useMedoraStore();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [doctorName, setDoctorName] = useState('Dr. Smith');
+
+  // Fetch doctor name from Firestore
+  useEffect(() => {
+    const fetchDoctorName = async () => {
+      if (user) {
+        try {
+          const userDocRef = doc(db, 'doctors', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            setDoctorName(data.displayName || user.displayName || 'Dr. Smith');
+          } else {
+            setDoctorName(user.displayName || user.email?.split('@')[0] || 'Dr. Smith');
+          }
+        } catch (error) {
+          console.error('Error fetching doctor name:', error);
+          setDoctorName(user.displayName || user.email?.split('@')[0] || 'Dr. Smith');
+        }
+      }
+    };
+
+    fetchDoctorName();
+  }, [user]);
 
   const exportSOAP = () => {
     if (!currentPatient) return;
@@ -82,11 +112,14 @@ Not for actual medical use.
   };
 
   const saveSOAP = () => {
-    if (!currentPatient) return;
+    if (!currentPatient || !user) return;
 
     const soapRecord = {
       id: `soap-${Date.now()}`,
       patientId: currentPatient.id,
+      petId: currentPatient.id, // Tag to pet (using patient ID as pet ID in this structure)
+      doctorId: user.uid, // Tag to doctor (Firebase Auth UID)
+      doctorName: doctorName, // Doctor name for display
       date: new Date().toISOString(),
       subjective: soapNote.subjective,
       objective: soapNote.objective,
@@ -98,16 +131,20 @@ Not for actual medical use.
     
     toast({
       title: "SOAP Note Saved",
-      description: "Note saved to patient record (demo mode).",
+      description: `Note saved and tagged to ${currentPatient.pet?.name || currentPatient.name} and ${doctorName}.`,
     });
     
     setShowPreview(false);
   };
 
-  const isComplete = Object.values(soapNote).every(section => section.trim().length > 0);
-  const wordCount = Object.values(soapNote).reduce((total, section) => 
-    total + (section.trim() ? section.trim().split(/\s+/).length : 0), 0
-  );
+  const isComplete = Object.values(soapNote).every(section => {
+    const sectionStr = typeof section === 'string' ? section : String(section || '');
+    return sectionStr.trim().length > 0;
+  });
+  const wordCount = Object.values(soapNote).reduce((total, section) => {
+    const sectionStr = typeof section === 'string' ? section : String(section || '');
+    return total + (sectionStr.trim() ? sectionStr.trim().split(/\s+/).length : 0);
+  }, 0);
 
   return (
     <Dialog open={showPreview} onOpenChange={setShowPreview}>
@@ -151,6 +188,9 @@ Not for actual medical use.
                         Owner: {currentPatient.owner.name}
                       </p>
                     )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Consulted by: {doctorName}
+                    </p>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />

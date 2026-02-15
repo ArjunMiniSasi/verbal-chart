@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Header } from "@/components/Header"
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { DoctorHeader } from "@/components/DoctorHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,15 +8,26 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Search, FileText, User, Calendar, TrendingUp, Loader2, Sparkles } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { EnhancedSearchResults } from "@/components/EnhancedSearchResults"
 
 const Search = () => {
-  const [query, setQuery] = useState('')
+  const [searchParams] = useSearchParams()
+  const [query, setQuery] = useState(searchParams.get('q') || '')
   const [results, setResults] = useState<any[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const { toast } = useToast()
 
-  const handleSearch = async () => {
-    if (!query.trim()) {
+  useEffect(() => {
+    const urlQuery = searchParams.get('q')
+    if (urlQuery) {
+      setQuery(urlQuery)
+      handleSearch(urlQuery)
+    }
+  }, [searchParams])
+
+  const handleSearch = async (searchQuery?: string) => {
+    const queryToSearch = searchQuery || query
+    if (!queryToSearch.trim()) {
       toast({
         title: "Empty query",
         description: "Please enter a search query.",
@@ -96,7 +108,7 @@ const Search = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <DoctorHeader />
       <div className="container mx-auto px-6 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
@@ -165,6 +177,11 @@ const Search = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Enhanced Search Results for Medicines/Lab Tests */}
+              {!isSearching && query && (
+                <EnhancedSearchResults query={query} />
+              )}
 
               {/* Search Results */}
               <Card>
