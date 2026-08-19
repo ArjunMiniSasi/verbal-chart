@@ -32,7 +32,7 @@ const db = getFirestore(app);
 
 // Initialize OpenAI
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY || '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',
+    apiKey: process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY,
 });
 
 // Sample veterinary drug data
